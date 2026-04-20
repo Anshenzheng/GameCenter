@@ -1,12 +1,13 @@
 /**
  * 数独游戏 - Sudoku Game
  * 深色毛玻璃风格，Q弹动效
+ * 优化布局：操作区在棋盘两侧
  */
 
 const SUDOKU_COLORS = {
     DARK_BG: '#0a0a1a',
     DARKER_BG: '#050510',
-    GLASS_BG: 'rgba(25, 25, 50, 0.85)',
+    GLASS_BG: 'rgba(25, 25, 50, 0.9)',
     GLASS_BORDER: 'rgba(255, 255, 255, 0.15)',
     ACCENT_BLUE: '#818cf8',
     ACCENT_PURPLE: '#c084fc',
@@ -20,14 +21,15 @@ const SUDOKU_COLORS = {
     CELL_FIXED: '#e2e8f0',
     CELL_USER: '#818cf8',
     CELL_ERROR: '#f87171',
-    CELL_NOTE: '#64748b',
-    HIGHLIGHT_ROW_COL: 'rgba(129, 140, 248, 0.2)',
-    HIGHLIGHT_BOX: 'rgba(192, 132, 252, 0.15)',
-    HIGHLIGHT_SELECTED: 'rgba(129, 140, 248, 0.5)',
-    HIGHLIGHT_SAME_NUMBER: 'rgba(74, 222, 128, 0.35)',
+    CELL_NOTE: '#94a3b8',
+    BOX_EVEN: 'rgba(30, 30, 60)',
+    BOX_ODD: 'rgba(20, 20, 50)',
+    HIGHLIGHT_ROW_COL: 'rgba(129, 140, 248, 0.12)',
+    HIGHLIGHT_BOX: 'rgba(192, 132, 252, 0.08)',
+    HIGHLIGHT_SELECTED: 'rgba(129, 140, 248, 0.4)',
+    HIGHLIGHT_SAME_NUMBER: 'rgba(74, 222, 128, 0.3)',
     HIGHLIGHT_CONFLICT: 'rgba(248, 113, 113, 0.4)',
     BOX_BORDER: '#6366f1',
-    CELL_BORDER: 'rgba(100, 116, 139, 0.5)',
 };
 
 const SUDOKU_DIFFICULTY = {
@@ -158,7 +160,7 @@ class SudokuGame extends GameInterface {
         return {
             id: 'sudoku',
             name: '数独',
-            description: '经典数独游戏，三种难度，支持笔记模式！深色毛玻璃风格。',
+            description: '经典数独游戏，三种难度，支持笔记模式！',
             icon: '🧩',
             colors: {
                 primary: SUDOKU_COLORS.ACCENT_BLUE,
@@ -229,10 +231,9 @@ class SudokuGame extends GameInterface {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start;
-            padding: 15px;
-            overflow-y: auto;
-            overflow-x: hidden;
+            justify-content: center;
+            padding: 10px;
+            overflow: hidden;
         `;
 
         const style = document.createElement('style');
@@ -255,9 +256,9 @@ class SudokuGame extends GameInterface {
             }
             @keyframes sudoku-error-flash {
                 0%, 100% { background: transparent; }
-                25% { background: rgba(248, 113, 113, 0.5); }
+                25% { background: rgba(248, 113, 113, 0.4); }
                 50% { background: transparent; }
-                75% { background: rgba(248, 113, 113, 0.5); }
+                75% { background: rgba(248, 113, 113, 0.4); }
             }
             @keyframes sudoku-bounce {
                 0%, 100% { transform: translateY(0); }
@@ -271,6 +272,11 @@ class SudokuGame extends GameInterface {
                 0%, 100% { transform: scale(1); }
                 50% { transform: scale(1.1); }
             }
+            @keyframes note-toggle {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.15); }
+                100% { transform: scale(1); }
+            }
         `;
         document.head.appendChild(style);
 
@@ -282,18 +288,83 @@ class SudokuGame extends GameInterface {
             align-items: center;
             gap: 12px;
             width: 100%;
-            max-width: 480px;
+            max-width: 700px;
             font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
         `;
 
         this.createHeader();
-        this.createNumberCountPanel();
-        this.createControlBar();
-        this.createBoard();
+        
+        this.createMainContent();
+        
         this.createNumberPad();
+        
         this.createDifficultySelector();
 
         this.canvas.appendChild(this.gameContainer);
+    }
+
+    createNumberPad() {
+        const padContainer = document.createElement('div');
+        padContainer.className = 'sudoku-numpad';
+        padContainer.style.cssText = `
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            width: 100%;
+            max-width: 500px;
+            margin-top: 8px;
+        `;
+
+        this.numberPadButtons = [];
+        for (let i = 1; i <= 9; i++) {
+            const btn = this.createNumberButton(i);
+            padContainer.appendChild(btn);
+            this.numberPadButtons.push(btn);
+        }
+
+        this.gameContainer.appendChild(padContainer);
+    }
+
+    createNumberButton(num) {
+        const btn = document.createElement('button');
+        btn.className = 'numpad-btn';
+        btn.dataset.num = num;
+        btn.textContent = num;
+        btn.style.cssText = `
+            padding: 14px;
+            font-size: 1.4rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, rgba(40, 40, 80, 0.9), rgba(30, 30, 60, 0.9));
+            backdrop-filter: blur(10px);
+            border: 2px solid ${SUDOKU_COLORS.GLASS_BORDER};
+            color: ${SUDOKU_COLORS.TEXT_PRIMARY};
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+        `;
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.inputNumber(num);
+        });
+
+        btn.addEventListener('mouseenter', () => {
+            btn.style.transform = 'translateY(-3px) scale(1.05)';
+            btn.style.background = `linear-gradient(135deg, ${SUDOKU_COLORS.ACCENT_BLUE}, ${SUDOKU_COLORS.ACCENT_PURPLE})`;
+            btn.style.boxShadow = `0 10px 30px rgba(129, 140, 248, 0.4)`;
+            btn.style.borderColor = SUDOKU_COLORS.ACCENT_BLUE;
+        });
+
+        btn.addEventListener('mouseleave', () => {
+            btn.style.transform = 'translateY(0) scale(1)';
+            btn.style.background = 'linear-gradient(135deg, rgba(40, 40, 80, 0.9), rgba(30, 30, 60, 0.9))';
+            btn.style.boxShadow = 'none';
+            btn.style.borderColor = SUDOKU_COLORS.GLASS_BORDER;
+        });
+
+        return btn;
     }
 
     createHeader() {
@@ -304,12 +375,14 @@ class SudokuGame extends GameInterface {
             justify-content: space-between;
             align-items: center;
             width: 100%;
-            padding: 12px 16px;
+            max-width: 550px;
+            padding: 12px 20px;
             background: ${SUDOKU_COLORS.GLASS_BG};
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border: 1px solid ${SUDOKU_COLORS.GLASS_BORDER};
             border-radius: 12px;
+            margin-bottom: 8px;
         `;
 
         const timerDisplay = document.createElement('div');
@@ -355,16 +428,48 @@ class SudokuGame extends GameInterface {
         this.gameContainer.appendChild(header);
     }
 
-    createNumberCountPanel() {
-        const panel = document.createElement('div');
-        panel.className = 'number-count-panel';
-        panel.id = 'number-count-panel';
-        panel.style.cssText = `
-            display: grid;
-            grid-template-columns: repeat(9, 1fr);
+    createMainContent() {
+        const mainRow = document.createElement('div');
+        mainRow.className = 'sudoku-main-row';
+        mainRow.style.cssText = `
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            width: 100%;
+        `;
+
+        this.createLeftPanel();
+        this.createBoard();
+        this.createRightPanel();
+
+        mainRow.appendChild(this.leftPanel);
+        mainRow.appendChild(this.boardContainer);
+        mainRow.appendChild(this.rightPanel);
+
+        this.gameContainer.appendChild(mainRow);
+    }
+
+    createLeftPanel() {
+        this.leftPanel = document.createElement('div');
+        this.leftPanel.className = 'sudoku-left-panel';
+        this.leftPanel.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 90px;
+            align-items: center;
+        `;
+
+        const numberCountPanel = document.createElement('div');
+        numberCountPanel.className = 'number-count-panel';
+        numberCountPanel.id = 'number-count-panel';
+        numberCountPanel.style.cssText = `
+            display: flex;
+            flex-direction: column;
             gap: 4px;
             width: 100%;
-            padding: 8px;
+            padding: 10px 8px;
             background: ${SUDOKU_COLORS.GLASS_BG};
             backdrop-filter: blur(10px);
             border: 1px solid ${SUDOKU_COLORS.GLASS_BORDER};
@@ -377,95 +482,48 @@ class SudokuGame extends GameInterface {
             countEl.dataset.num = num;
             countEl.style.cssText = `
                 display: flex;
-                flex-direction: column;
                 align-items: center;
-                justify-content: center;
-                padding: 6px 4px;
-                border-radius: 8px;
+                justify-content: space-between;
+                padding: 6px 8px;
+                border-radius: 6px;
                 transition: all 0.3s ease;
-                min-width: 0;
             `;
             countEl.innerHTML = `
                 <span class="count-number" style="
-                    font-size: 1.1rem;
+                    font-size: 1rem;
                     font-weight: 700;
                     color: ${SUDOKU_COLORS.TEXT_PRIMARY};
-                    line-height: 1;
                 ">${num}</span>
                 <span class="count-value" style="
-                    font-size: 0.75rem;
+                    font-size: 0.8rem;
                     font-weight: 600;
                     color: ${SUDOKU_COLORS.ACCENT_GREEN};
-                    margin-top: 2px;
                 ">9</span>
             `;
-            panel.appendChild(countEl);
+            numberCountPanel.appendChild(countEl);
         }
 
-        this.gameContainer.appendChild(panel);
+        this.leftPanel.appendChild(numberCountPanel);
     }
 
-    updateNumberCounts() {
-        this.numberCounts = {};
-        for (let num = 1; num <= 9; num++) {
-            this.numberCounts[num] = 0;
-        }
-        
-        for (let r = 0; r < 9; r++) {
-            for (let c = 0; c < 9; c++) {
-                const val = this.board[r][c];
-                if (val > 0) {
-                    this.numberCounts[val]++;
-                }
-            }
-        }
-
-        const countElements = document.querySelectorAll('.number-count');
-        countElements.forEach(el => {
-            const num = parseInt(el.dataset.num);
-            const remaining = 9 - this.numberCounts[num];
-            const countValue = el.querySelector('.count-value');
-            const countNumber = el.querySelector('.count-number');
-            
-            countValue.textContent = remaining;
-            
-            if (remaining === 0) {
-                el.style.background = `rgba(74, 222, 128, 0.15)`;
-                el.style.border = `1px solid ${SUDOKU_COLORS.ACCENT_GREEN}`;
-                countValue.style.color = SUDOKU_COLORS.ACCENT_GREEN;
-                countNumber.style.opacity = '0.5';
-            } else if (remaining < 3) {
-                el.style.background = `rgba(251, 191, 36, 0.15)`;
-                el.style.border = `1px solid ${SUDOKU_COLORS.ACCENT_YELLOW}`;
-                countValue.style.color = SUDOKU_COLORS.ACCENT_YELLOW;
-                countNumber.style.opacity = '1';
-            } else {
-                el.style.background = 'transparent';
-                el.style.border = '1px solid transparent';
-                countValue.style.color = SUDOKU_COLORS.TEXT_SECONDARY;
-                countNumber.style.opacity = '1';
-            }
-        });
-    }
-
-    createControlBar() {
-        const controlBar = document.createElement('div');
-        controlBar.className = 'sudoku-controls';
-        controlBar.style.cssText = `
+    createRightPanel() {
+        this.rightPanel = document.createElement('div');
+        this.rightPanel.className = 'sudoku-right-panel';
+        this.rightPanel.style.cssText = `
             display: flex;
+            flex-direction: column;
             gap: 8px;
-            width: 100%;
-            justify-content: center;
-            flex-wrap: wrap;
+            width: 100px;
+            align-items: center;
         `;
 
         const noteBtn = document.createElement('button');
         noteBtn.id = 'note-mode-btn';
         noteBtn.className = 'sudoku-btn note-btn';
-        noteBtn.innerHTML = '✏️ 笔记 <span class="note-status" style="font-size:0.7rem;opacity:0.6;">OFF</span>';
+        noteBtn.innerHTML = '✏️<br><span style="font-size:0.75rem;">笔记</span><br><span class="note-status" style="font-size:0.65rem;opacity:0.6;">OFF</span>';
         noteBtn.style.cssText = `
-            padding: 10px 14px;
-            font-size: 0.9rem;
+            padding: 12px 10px;
+            font-size: 1rem;
             font-weight: 600;
             background: ${SUDOKU_COLORS.GLASS_BG};
             backdrop-filter: blur(10px);
@@ -475,28 +533,30 @@ class SudokuGame extends GameInterface {
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 6px;
+            gap: 2px;
+            width: 100%;
         `;
         noteBtn.addEventListener('click', () => this.toggleNoteMode());
 
         const buttons = [
-            { id: 'undo-btn', text: '↩️ 撤销', action: () => this.undo() },
-            { id: 'erase-btn', text: '🗑️ 擦除', action: () => this.eraseCell() },
-            { id: 'hint-btn', text: '💡 提示', action: () => this.showHint() },
-            { id: 'new-game-btn', text: '🔄 新游戏', action: () => this.showNewGameMenu() }
+            { id: 'undo-btn', icon: '↩️', text: '撤销', action: () => this.undo() },
+            { id: 'erase-btn', icon: '🗑️', text: '擦除', action: () => this.eraseCell() },
+            { id: 'hint-btn', icon: '💡', text: '提示', action: () => this.showHint() },
+            { id: 'new-game-btn', icon: '🔄', text: '新游戏', action: () => this.showNewGameMenu() }
         ];
 
-        controlBar.appendChild(noteBtn);
+        this.rightPanel.appendChild(noteBtn);
 
         buttons.forEach(btn => {
             const button = document.createElement('button');
             button.id = btn.id;
             button.className = 'sudoku-btn';
-            button.textContent = btn.text;
+            button.innerHTML = `${btn.icon}<br><span style="font-size:0.75rem;">${btn.text}</span>`;
             button.style.cssText = `
-                padding: 10px 14px;
-                font-size: 0.9rem;
+                padding: 10px 8px;
+                font-size: 1rem;
                 font-weight: 600;
                 background: ${SUDOKU_COLORS.GLASS_BG};
                 backdrop-filter: blur(10px);
@@ -505,6 +565,11 @@ class SudokuGame extends GameInterface {
                 border-radius: 10px;
                 cursor: pointer;
                 transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 2px;
+                width: 100%;
             `;
             button.addEventListener('click', btn.action);
             
@@ -519,16 +584,14 @@ class SudokuGame extends GameInterface {
                 button.style.boxShadow = 'none';
             });
 
-            controlBar.appendChild(button);
+            this.rightPanel.appendChild(button);
         });
-
-        this.gameContainer.appendChild(controlBar);
     }
 
     createBoard() {
-        const boardContainer = document.createElement('div');
-        boardContainer.className = 'sudoku-board-container';
-        boardContainer.style.cssText = `
+        this.boardContainer = document.createElement('div');
+        this.boardContainer.className = 'sudoku-board-container';
+        this.boardContainer.style.cssText = `
             position: relative;
             padding: 4px;
             background: linear-gradient(135deg, ${SUDOKU_COLORS.ACCENT_BLUE}, ${SUDOKU_COLORS.ACCENT_PURPLE});
@@ -558,7 +621,6 @@ class SudokuGame extends GameInterface {
                 cell.dataset.row = row;
                 cell.dataset.col = col;
                 
-                const boxIndex = Math.floor(row / 3) * 3 + Math.floor(col / 3);
                 const isEvenBox = (Math.floor(row / 3) + Math.floor(col / 3)) % 2 === 0;
                 
                 cell.style.cssText = `
@@ -567,7 +629,7 @@ class SudokuGame extends GameInterface {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    background: ${isEvenBox ? 'rgba(30, 30, 60, 0.95)' : 'rgba(20, 20, 50, 0.95)'};
+                    background: ${isEvenBox ? SUDOKU_COLORS.BOX_EVEN : SUDOKU_COLORS.BOX_ODD};
                     cursor: pointer;
                     position: relative;
                     transition: all 0.2s ease;
@@ -641,70 +703,7 @@ class SudokuGame extends GameInterface {
             }
         }
 
-        boardContainer.appendChild(this.boardElement);
-        this.gameContainer.appendChild(boardContainer);
-    }
-
-    createNumberPad() {
-        const padContainer = document.createElement('div');
-        padContainer.className = 'sudoku-numpad';
-        padContainer.style.cssText = `
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 8px;
-            width: 100%;
-        `;
-
-        this.numberPadButtons = [];
-        for (let i = 1; i <= 9; i++) {
-            const btn = this.createNumberButton(i);
-            padContainer.appendChild(btn);
-            this.numberPadButtons.push(btn);
-        }
-
-        this.gameContainer.appendChild(padContainer);
-    }
-
-    createNumberButton(num) {
-        const btn = document.createElement('button');
-        btn.className = 'numpad-btn';
-        btn.dataset.num = num;
-        btn.textContent = num;
-        btn.style.cssText = `
-            padding: 14px;
-            font-size: 1.4rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, rgba(40, 40, 80, 0.9), rgba(30, 30, 60, 0.9));
-            backdrop-filter: blur(10px);
-            border: 2px solid ${SUDOKU_COLORS.GLASS_BORDER};
-            color: ${SUDOKU_COLORS.TEXT_PRIMARY};
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            position: relative;
-            overflow: hidden;
-        `;
-
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.inputNumber(num);
-        });
-
-        btn.addEventListener('mouseenter', () => {
-            btn.style.transform = 'translateY(-3px) scale(1.05)';
-            btn.style.background = `linear-gradient(135deg, ${SUDOKU_COLORS.ACCENT_BLUE}, ${SUDOKU_COLORS.ACCENT_PURPLE})`;
-            btn.style.boxShadow = `0 10px 30px rgba(129, 140, 248, 0.4)`;
-            btn.style.borderColor = SUDOKU_COLORS.ACCENT_BLUE;
-        });
-
-        btn.addEventListener('mouseleave', () => {
-            btn.style.transform = 'translateY(0) scale(1)';
-            btn.style.background = 'linear-gradient(135deg, rgba(40, 40, 80, 0.9), rgba(30, 30, 60, 0.9))';
-            btn.style.boxShadow = 'none';
-            btn.style.borderColor = SUDOKU_COLORS.GLASS_BORDER;
-        });
-
-        return btn;
+        this.boardContainer.appendChild(this.boardElement);
     }
 
     createDifficultySelector() {
@@ -725,7 +724,7 @@ class SudokuGame extends GameInterface {
             btn.dataset.difficulty = key;
             btn.innerHTML = `${config.label} ${config.name}`;
             btn.style.cssText = `
-                padding: 8px 14px;
+                padding: 8px 16px;
                 font-size: 0.85rem;
                 font-weight: 600;
                 background: ${key === this.currentDifficulty ? 
@@ -850,7 +849,7 @@ class SudokuGame extends GameInterface {
         const cellData = this.cells[row][col];
         cellData.element.style.background = SUDOKU_COLORS.HIGHLIGHT_SELECTED;
         cellData.element.style.transform = 'scale(1.05)';
-        cellData.element.style.boxShadow = `0 0 20px ${SUDOKU_COLORS.ACCENT_BLUE}`;
+        cellData.element.style.boxShadow = `0 0 15px ${SUDOKU_COLORS.ACCENT_BLUE}`;
         cellData.element.style.zIndex = '10';
         
         this.audioManager.playSound('hit', { pitch: 0.8, volume: 0.3 });
@@ -862,7 +861,7 @@ class SudokuGame extends GameInterface {
                 const cellData = this.cells[row][col];
                 const isEvenBox = (Math.floor(row / 3) + Math.floor(col / 3)) % 2 === 0;
                 cellData.element.style.background = isEvenBox ? 
-                    'rgba(30, 30, 60, 0.95)' : 'rgba(20, 20, 50, 0.95)';
+                    SUDOKU_COLORS.BOX_EVEN : SUDOKU_COLORS.BOX_ODD;
                 cellData.element.style.transform = 'scale(1)';
                 cellData.element.style.boxShadow = 'none';
                 cellData.element.style.zIndex = '1';
@@ -976,23 +975,21 @@ class SudokuGame extends GameInterface {
         }
 
         if (this.isNoteMode) {
-            if (this.board[row][col] === 0) {
-                this.history.push({
-                    row,
-                    col,
-                    previousValue: this.board[row][col],
-                    previousNotes: new Set(this.notes[row][col]),
-                    isNoteChange: true
-                });
+            this.history.push({
+                row,
+                col,
+                previousValue: this.board[row][col],
+                previousNotes: new Set(this.notes[row][col]),
+                isNoteChange: true
+            });
 
-                if (this.notes[row][col].has(num)) {
-                    this.notes[row][col].delete(num);
-                } else {
-                    this.notes[row][col].add(num);
-                }
-                this.updateCellDisplay(row, col);
-                this.audioManager.playSound('hit', { pitch: 0.9, volume: 0.3 });
+            if (this.notes[row][col].has(num)) {
+                this.notes[row][col].delete(num);
+            } else {
+                this.notes[row][col].add(num);
             }
+            this.updateCellDisplay(row, col);
+            this.audioManager.playSound('hit', { pitch: 0.9, volume: 0.3 });
         } else {
             const previousValue = this.board[row][col];
             
@@ -1025,7 +1022,7 @@ class SudokuGame extends GameInterface {
             const cellData = this.cells[this.selectedCell.row][this.selectedCell.col];
             cellData.element.style.background = SUDOKU_COLORS.HIGHLIGHT_SELECTED;
             cellData.element.style.transform = 'scale(1.05)';
-            cellData.element.style.boxShadow = `0 0 20px ${SUDOKU_COLORS.ACCENT_BLUE}`;
+            cellData.element.style.boxShadow = `0 0 15px ${SUDOKU_COLORS.ACCENT_BLUE}`;
             cellData.element.style.zIndex = '10';
         }
     }
@@ -1121,6 +1118,9 @@ class SudokuGame extends GameInterface {
                     statusEl.style.opacity = '1';
                     statusEl.style.animation = 'note-pulse 1s ease infinite';
                 }
+                btn.style.animation = 'none';
+                btn.offsetHeight;
+                btn.style.animation = 'note-toggle 0.3s ease';
             } else {
                 btn.style.background = SUDOKU_COLORS.GLASS_BG;
                 btn.style.boxShadow = 'none';
@@ -1226,6 +1226,49 @@ class SudokuGame extends GameInterface {
             const seconds = this.timer % 60;
             timerEl.innerHTML = `<span style="color: ${SUDOKU_COLORS.ACCENT_BLUE};">⏱️</span> ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
+    }
+
+    updateNumberCounts() {
+        this.numberCounts = {};
+        for (let num = 1; num <= 9; num++) {
+            this.numberCounts[num] = 0;
+        }
+        
+        for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+                const val = this.board[r][c];
+                if (val > 0) {
+                    this.numberCounts[val]++;
+                }
+            }
+        }
+
+        const countElements = document.querySelectorAll('.number-count');
+        countElements.forEach(el => {
+            const num = parseInt(el.dataset.num);
+            const remaining = 9 - this.numberCounts[num];
+            const countValue = el.querySelector('.count-value');
+            const countNumber = el.querySelector('.count-number');
+            
+            countValue.textContent = remaining;
+            
+            if (remaining === 0) {
+                el.style.background = 'rgba(74, 222, 128, 0.15)';
+                el.style.border = '1px solid rgba(74, 222, 128, 0.5)';
+                countValue.style.color = SUDOKU_COLORS.ACCENT_GREEN;
+                countNumber.style.opacity = '0.5';
+            } else if (remaining < 3) {
+                el.style.background = 'rgba(251, 191, 36, 0.15)';
+                el.style.border = '1px solid rgba(251, 191, 36, 0.5)';
+                countValue.style.color = SUDOKU_COLORS.ACCENT_YELLOW;
+                countNumber.style.opacity = '1';
+            } else {
+                el.style.background = 'transparent';
+                el.style.border = '1px solid transparent';
+                countValue.style.color = SUDOKU_COLORS.TEXT_SECONDARY;
+                countNumber.style.opacity = '1';
+            }
+        });
     }
 
     updateMistakesDisplay() {
