@@ -1,3 +1,4 @@
+
 /**
  * 动态律动 - 音乐小游戏
  * 波普风格：高饱和对比色、粗黑边框、波点底纹、几何形状
@@ -186,6 +187,7 @@ class Note {
         this.isDisappearing = false;
         this.disappearProgress = 0;
         this.disappearType = null;
+        this.hasTriggeredMiss = false;
         
         // 长按模式
         this.isHold = type === NOTE_TYPES.HOLD;
@@ -204,17 +206,22 @@ class Note {
         this.currentX = 0;
         this.currentY = 0;
         this.angle = 0;
+        this.startX = 0;
+        this.startY = 0;
+        this.targetX = 0;
+        this.targetY = 0;
         
         // 动画参数
         this.bounceOffset = 0;
         this.bouncePhase = Math.random() * Math.PI * 2;
         
-        this.calculatePositions();
+        // 位置将在 updatePositions 中计算
+        this.positionsCalculated = false;
     }
     
-    calculatePositions() {
-        const centerX = window.innerWidth / 2;
-        const centerY = window.innerHeight / 2;
+    calculatePositions(canvasWidth, canvasHeight) {
+        const centerX = canvasWidth / 2;
+        const centerY = canvasHeight / 2;
         
         // 音符图标默认是符干向上（符头在下方）
         // 我们需要让音符朝向中心（朝向它们飞来的方向的反方向）
@@ -234,7 +241,7 @@ class Note {
                 break;
             case 'down':
                 this.startX = centerX;
-                this.startY = window.innerHeight + DYNAMIC_RHYTHM_CONFIG.noteSize * 2;
+                this.startY = canvasHeight + DYNAMIC_RHYTHM_CONFIG.noteSize * 2;
                 this.angle = 0;
                 this.moveDirX = 0;
                 this.moveDirY = -1;
@@ -249,7 +256,7 @@ class Note {
                 this.keyCode = 'ArrowLeft';
                 break;
             case 'right':
-                this.startX = window.innerWidth + DYNAMIC_RHYTHM_CONFIG.noteSize * 2;
+                this.startX = canvasWidth + DYNAMIC_RHYTHM_CONFIG.noteSize * 2;
                 this.startY = centerY;
                 this.angle = 90;
                 this.moveDirX = -1;
@@ -262,8 +269,13 @@ class Note {
         this.targetY = centerY;
     }
     
-    update(currentTime) {
+    update(currentTime, canvasWidth, canvasHeight) {
         if (!this.isActive) return;
+        
+        if (!this.positionsCalculated) {
+            this.calculatePositions(canvasWidth, canvasHeight);
+            this.positionsCalculated = true;
+        }
         
         if (this.isDisappearing) {
             this.disappearProgress += 0.05;
@@ -425,16 +437,18 @@ class Note {
     drawHoldTail(ctx) {
         const size = DYNAMIC_RHYTHM_CONFIG.noteSize;
         const tailLength = size * 3 * (this.isHolding ? (1 - this.holdProgress) : 1);
+        const tailWidth = size * 0.4;
+        const cornerRadius = size * 0.1;
+        
+        if (tailLength <= 0) return;
         
         ctx.save();
         
-        // 尾巴主体
+        // 尾巴主体 - 使用圆角矩形
         ctx.fillStyle = this.color;
         ctx.globalAlpha = 0.6;
         
-        // 尾巴是一条粗线，符干方向
-        ctx.beginPath();
-        ctx.rect(-size * 0.3, -tailLength, size * 0.6, tailLength);
+        this.drawRoundedRect(ctx, -tailWidth/2, -tailLength, tailWidth, tailLength, cornerRadius);
         ctx.fill();
         
         // 边框
@@ -442,15 +456,55 @@ class Note {
         ctx.lineWidth = 3;
         ctx.stroke();
         
-        // 长按进度指示
-        if (this.isHolding) {
-            ctx.globalAlpha = 0.8;
-            ctx.fillStyle = POP_COLORS.LIME_GREEN;
+        // 长按进度指示 - 渐变效果
+        if (this.isHolding && this.holdProgress > 0) {
             const progressHeight = tailLength * this.holdProgress;
-            ctx.fillRect(-size * 0.3, -progressHeight, size * 0.6, progressHeight);
+            if (progressHeight > 0) {
+                ctx.globalAlpha = 0.9;
+                
+                // 渐变进度条
+                const gradient = ctx.createLinearGradient(0, -progressHeight, 0, 0);
+                gradient.addColorStop(0, POP_COLORS.LIME_GREEN);
+                gradient.addColorStop(1, POP_COLORS.CYAN_BLUE);
+                ctx.fillStyle = gradient;
+                
+                this.drawRoundedRect(ctx, -tailWidth/2, -progressHeight, tailWidth, progressHeight, cornerRadius);
+                ctx.fill();
+                
+                // 进度条边框
+                ctx.strokeStyle = POP_COLORS.WHITE;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+        
+        // 尾巴末端装饰 - 小圆点
+        if (tailLength > size * 0.5) {
+            ctx.globalAlpha = 0.8;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(0, -tailLength + cornerRadius, size * 0.12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = POP_COLORS.BLACK;
+            ctx.lineWidth = 2;
+            ctx.stroke();
         }
         
         ctx.restore();
+    }
+    
+    drawRoundedRect(ctx, x, y, width, height, radius) {
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
     }
     
     drawDoubleMarker(ctx) {
@@ -814,9 +868,9 @@ class DynamicRhythmGame extends GameInterface {
     
     generateChart() {
         const generator = new ChartGenerator(this.bpm);
-        this.chartData = generator.generate(120, 0.65);
+        this.chartData = generator.generate(600, 0.65);
         this.totalNotes = this.chartData.length;
-        console.log(`已生成 ${this.chartData.length} 个音符`);
+        console.log(`已生成 ${this.chartData.length} 个音符（10分钟谱面）`);
     }
     
     createStartScreen() {
@@ -1301,16 +1355,18 @@ class DynamicRhythmGame extends GameInterface {
     
     updateAndRenderNotes(currentTime, width, height) {
         this.activeNotes = this.activeNotes.filter(note => {
-            note.update(currentTime);
+            note.update(currentTime, width, height);
+            
+            if (note.isDisappearing && !note.isHit && !note.hasTriggeredMiss) {
+                note.hasTriggeredMiss = true;
+                this.handleMiss();
+            }
             
             if (note.isActive) {
                 note.render(this.ctx, width, height);
                 return true;
-            } else if (!note.isHit && !note.isDisappearing) {
-                this.handleMiss();
-                return false;
             }
-            return note.isActive;
+            return false;
         });
     }
     
@@ -1856,6 +1912,7 @@ class DynamicRhythmGame extends GameInterface {
     handleMiss(note = null) {
         this.missCount++;
         this.updateCombo(0);
+        this.lastCombo = 0;
         
         this.energy = Math.max(0, this.energy - DYNAMIC_RHYTHM_CONFIG.missEnergyLoss);
         
