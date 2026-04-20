@@ -2,51 +2,51 @@
  * 动态律动 - 音乐小游戏
  * 波普风格：高饱和对比色、粗黑边框、波点底纹、几何形状
  * 核心玩法：音符从四周飞向中心节拍器，按空格键或方向键击打
+ * 新增功能：长按模式、双击模式、能量槽、游戏结束、评价系统、战绩卡片
  */
 
 // ==========================================
 // 波普风格配色配置
 // ==========================================
 const POP_COLORS = {
-    // 高饱和主色调 - 波普风格核心
-    ELECTRIC_PINK: '#FF1493',      // 电粉
-    NEON_YELLOW: '#FFD700',         // 霓虹黄
-    CYAN_BLUE: '#00FFFF',           // 青蓝
-    LIME_GREEN: '#39FF14',          // 酸橙绿
-    HOT_PINK: '#FF69B4',            // 亮粉
-    ORANGE_RED: '#FF4500',          // 橙红
-    PURPLE: '#9400D3',              // 深紫
-    TURQUOISE: '#40E0D0',           // 绿松石
-    MAGENTA: '#FF00FF',             // 品红
-    YELLOW_GREEN: '#9ACD32',        // 黄绿
-    
-    // 黑色和白色（用于边框和文字）
+    ELECTRIC_PINK: '#FF1493',
+    NEON_YELLOW: '#FFD700',
+    CYAN_BLUE: '#00FFFF',
+    LIME_GREEN: '#39FF14',
+    HOT_PINK: '#FF69B4',
+    ORANGE_RED: '#FF4500',
+    PURPLE: '#9400D3',
+    TURQUOISE: '#40E0D0',
+    MAGENTA: '#FF00FF',
+    YELLOW_GREEN: '#9ACD32',
     BLACK: '#000000',
     WHITE: '#FFFFFF',
-    
-    // 波点底纹颜色
     DOT_COLOR: 'rgba(0, 0, 0, 0.15)',
     DOT_COLOR_LIGHT: 'rgba(255, 255, 255, 0.15)'
 };
 
 // 游戏配置
 const DYNAMIC_RHYTHM_CONFIG = {
-    // 音符配置
     noteSpeed: 300,
     hitRadius: 90,
     perfectRadius: 50,
     noteSize: 60,
-    
-    // 节拍器配置
     metronomeSize: 120,
     pulseSpeed: 0.4,
-    
-    // 评分配置
     perfectScore: 100,
     goodScore: 50,
     missPenalty: -10,
     
-    // 音效配置
+    // 能量槽配置
+    maxEnergy: 100,
+    perfectEnergyGain: 8,
+    goodEnergyGain: 5,
+    missEnergyLoss: 20,
+    initialEnergy: 80,
+    
+    // 长按模式配置
+    holdNoteDuration: 1.0,
+    
     sounds: {
         hit: 'hit',
         perfect: 'perfect',
@@ -54,7 +54,6 @@ const DYNAMIC_RHYTHM_CONFIG = {
         combo: 'combo'
     },
     
-    // 颜色配置 - 波普风格
     colors: {
         metronome: POP_COLORS.ELECTRIC_PINK,
         notes: [
@@ -68,10 +67,11 @@ const DYNAMIC_RHYTHM_CONFIG = {
         ],
         perfect: POP_COLORS.WHITE,
         good: POP_COLORS.NEON_YELLOW,
-        miss: POP_COLORS.ORANGE_RED
+        miss: POP_COLORS.ORANGE_RED,
+        hold: POP_COLORS.LIME_GREEN,
+        double: POP_COLORS.CYAN_BLUE
     },
     
-    // 连击颜色阶梯（根据连击数变化背景色 - 波普风格高饱和色）
     comboColorStages: [
         { minCombo: 0, color: POP_COLORS.ELECTRIC_PINK, dots: true },
         { minCombo: 5, color: POP_COLORS.NEON_YELLOW, dots: true },
@@ -84,6 +84,13 @@ const DYNAMIC_RHYTHM_CONFIG = {
     ]
 };
 
+// 音符类型枚举
+const NOTE_TYPES = {
+    NORMAL: 'normal',
+    HOLD: 'hold',
+    DOUBLE: 'double'
+};
+
 // ==========================================
 // 粒子系统类
 // ==========================================
@@ -94,44 +101,34 @@ class Particle {
         this.color = color;
         this.type = type;
         
-        // 随机速度和方向
         const angle = Math.random() * Math.PI * 2;
         const speed = 100 + Math.random() * 300;
         this.vx = Math.cos(angle) * speed;
         this.vy = Math.sin(angle) * speed;
         
-        // 大小和旋转
         this.size = 5 + Math.random() * 15;
         this.rotation = Math.random() * Math.PI * 2;
         this.rotationSpeed = (Math.random() - 0.5) * 10;
         
-        // 生命周期
         this.life = 0.5 + Math.random() * 0.5;
         this.maxLife = this.life;
         this.alpha = 1;
         
-        // 重力
         this.gravity = 200;
     }
     
     update(deltaTime) {
         const dt = deltaTime / 1000;
         
-        // 更新位置
         this.x += this.vx * dt;
         this.y += this.vy * dt;
         
-        // 应用重力
         this.vy += this.gravity * dt;
-        
-        // 更新旋转
         this.rotation += this.rotationSpeed * dt;
         
-        // 更新生命周期
         this.life -= dt;
         this.alpha = Math.max(0, this.life / this.maxLife);
         
-        // 缩小
         this.size *= 0.98;
         
         return this.life > 0;
@@ -143,26 +140,21 @@ class Particle {
         ctx.rotate(this.rotation);
         ctx.globalAlpha = this.alpha;
         
-        // 波普风格粒子 - 几何形状
         ctx.fillStyle = this.color;
         ctx.strokeStyle = POP_COLORS.BLACK;
         ctx.lineWidth = 2;
         
-        // 随机选择形状
         const shapeType = Math.floor(Math.random() * 3);
         
         if (shapeType === 0) {
-            // 方形
             ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
             ctx.strokeRect(-this.size/2, -this.size/2, this.size, this.size);
         } else if (shapeType === 1) {
-            // 圆形
             ctx.beginPath();
             ctx.arc(0, 0, this.size/2, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
         } else {
-            // 三角形
             ctx.beginPath();
             ctx.moveTo(0, -this.size/2);
             ctx.lineTo(-this.size/2, this.size/2);
@@ -177,24 +169,36 @@ class Particle {
 }
 
 // ==========================================
-// 音符类 - 波普风格
+// 音符类 - 支持普通、长按、双击
 // ==========================================
 class Note {
-    constructor(direction, color, spawnTime, targetTime) {
+    constructor(direction, color, spawnTime, targetTime, type = NOTE_TYPES.NORMAL, options = {}) {
         this.direction = direction;
         this.color = color;
         this.spawnTime = spawnTime;
         this.targetTime = targetTime;
+        this.type = type;
         this.id = Math.random().toString(36).substr(2, 9);
         
         // 状态
         this.isActive = true;
         this.isHit = false;
-        
-        // 消失动画状态
         this.isDisappearing = false;
         this.disappearProgress = 0;
-        this.disappearType = null; // 'explode', 'shrink', 'spin'
+        this.disappearType = null;
+        
+        // 长按模式
+        this.isHold = type === NOTE_TYPES.HOLD;
+        this.holdDuration = options.holdDuration || DYNAMIC_RHYTHM_CONFIG.holdNoteDuration;
+        this.holdEndTime = targetTime + this.holdDuration;
+        this.isHolding = false;
+        this.holdProgress = 0;
+        
+        // 双击模式
+        this.isDouble = type === NOTE_TYPES.DOUBLE;
+        this.partnerDirection = options.partnerDirection || null;
+        this.partnerNote = null;
+        this.isDoubleHit = false;
         
         // 位置计算
         this.currentX = 0;
@@ -204,7 +208,6 @@ class Note {
         // 动画参数
         this.bounceOffset = 0;
         this.bouncePhase = Math.random() * Math.PI * 2;
-        this.rotationAngle = 0;
         
         this.calculatePositions();
     }
@@ -213,12 +216,18 @@ class Note {
         const centerX = window.innerWidth / 2;
         const centerY = window.innerHeight / 2;
         
-        // 根据方向计算起始位置和角度
+        // 音符图标默认是符干向上（符头在下方）
+        // 我们需要让音符朝向中心（朝向它们飞来的方向的反方向）
+        // 从上方飞来的音符应该指向下（符干向下）
+        // 从下方飞来的音符应该指向上（符干向上）
+        // 从左边飞来的音符应该指向右（符干向右）
+        // 从右边飞来的音符应该指向左（符干向左）
+        
         switch (this.direction) {
             case 'up':
                 this.startX = centerX;
                 this.startY = -DYNAMIC_RHYTHM_CONFIG.noteSize * 2;
-                this.angle = 0;
+                this.angle = 180;
                 this.moveDirX = 0;
                 this.moveDirY = 1;
                 this.keyCode = 'ArrowUp';
@@ -226,7 +235,7 @@ class Note {
             case 'down':
                 this.startX = centerX;
                 this.startY = window.innerHeight + DYNAMIC_RHYTHM_CONFIG.noteSize * 2;
-                this.angle = 180;
+                this.angle = 0;
                 this.moveDirX = 0;
                 this.moveDirY = -1;
                 this.keyCode = 'ArrowDown';
@@ -234,7 +243,7 @@ class Note {
             case 'left':
                 this.startX = -DYNAMIC_RHYTHM_CONFIG.noteSize * 2;
                 this.startY = centerY;
-                this.angle = 90;
+                this.angle = -90;
                 this.moveDirX = 1;
                 this.moveDirY = 0;
                 this.keyCode = 'ArrowLeft';
@@ -242,26 +251,21 @@ class Note {
             case 'right':
                 this.startX = window.innerWidth + DYNAMIC_RHYTHM_CONFIG.noteSize * 2;
                 this.startY = centerY;
-                this.angle = -90;
+                this.angle = 90;
                 this.moveDirX = -1;
                 this.moveDirY = 0;
                 this.keyCode = 'ArrowRight';
                 break;
         }
         
-        // 目标位置（中心）
         this.targetX = centerX;
         this.targetY = centerY;
     }
     
-    /**
-     * 更新音符位置
-     */
     update(currentTime) {
         if (!this.isActive) return;
         
         if (this.isDisappearing) {
-            // 消失动画
             this.disappearProgress += 0.05;
             if (this.disappearProgress >= 1) {
                 this.isActive = false;
@@ -269,51 +273,62 @@ class Note {
             return;
         }
         
+        // 长按模式：如果已经开始长按，更新进度
+        if (this.isHold && this.isHolding) {
+            this.holdProgress = Math.min(1, (currentTime - this.targetTime) / this.holdDuration);
+            if (this.holdProgress >= 1) {
+                this.hit('perfect');
+            }
+            return;
+        }
+        
         const progress = (currentTime - this.spawnTime) / (this.targetTime - this.spawnTime);
         const clampedProgress = Math.max(0, Math.min(1, progress));
         
-        // 使用缓动函数使运动更自然
         const easedProgress = this.easeInOutQuad(clampedProgress);
         
         this.currentX = this.startX + (this.targetX - this.startX) * easedProgress;
         this.currentY = this.startY + (this.targetY - this.startY) * easedProgress;
         
-        // 弹跳动画
         this.bouncePhase += 0.1;
         this.bounceOffset = Math.sin(this.bouncePhase) * 5;
         
-        // 轻微旋转
-        this.rotationAngle = Math.sin(this.bouncePhase * 0.5) * 10;
+        if (currentTime > this.targetTime + 0.3 && !this.isHold) {
+            this.miss();
+        }
         
-        // 检查是否已经过了目标时间（错过）
-        if (currentTime > this.targetTime + 0.3) {
+        if (this.isHold && currentTime > this.holdEndTime && !this.isHolding) {
             this.miss();
         }
     }
     
-    /**
-     * 缓动函数
-     */
     easeInOutQuad(t) {
         return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
     }
     
-    /**
-     * 检查击中判定
-     */
     checkHit(currentTime) {
         if (!this.isActive || this.isHit || this.isDisappearing) return null;
         
+        // 双击模式：需要两个音符都被击中
+        if (this.isDouble && this.partnerNote && !this.partnerNote.isHit) {
+            return null;
+        }
+        
         const timeDiff = Math.abs(currentTime - this.targetTime);
         
-        // 时间判定
+        if (this.isHold) {
+            if (timeDiff < 0.2) {
+                return 'hold-start';
+            }
+            return null;
+        }
+        
         if (timeDiff < 0.1) {
             return 'perfect';
         } else if (timeDiff < 0.25) {
             return 'good';
         }
         
-        // 距离判定（备选）
         const distance = Math.sqrt(
             Math.pow(this.currentX - this.targetX, 2) +
             Math.pow(this.currentY - this.targetY, 2)
@@ -328,9 +343,25 @@ class Note {
         return null;
     }
     
-    /**
-     * 击中音符 - 开始消失动画
-     */
+    startHold() {
+        if (this.isHold) {
+            this.isHolding = true;
+        }
+    }
+    
+    endHold() {
+        if (this.isHold && this.isHolding) {
+            this.isHolding = false;
+            if (this.holdProgress >= 0.9) {
+                this.hit('perfect');
+            } else if (this.holdProgress >= 0.5) {
+                this.hit('good');
+            } else {
+                this.miss();
+            }
+        }
+    }
+    
     hit(type = 'perfect') {
         this.isHit = true;
         this.isDisappearing = true;
@@ -338,46 +369,33 @@ class Note {
         this.disappearType = type === 'perfect' ? 'explode' : 'shrink';
     }
     
-    /**
-     * 错过音符
-     */
     miss() {
         this.isDisappearing = true;
         this.disappearProgress = 0;
         this.disappearType = 'spin';
     }
     
-    /**
-     * 渲染音符（波普风格）
-     */
     render(ctx, canvasWidth, canvasHeight) {
         if (!this.isActive) return;
-        
-        const centerX = canvasWidth / 2;
-        const centerY = canvasHeight / 2;
         
         ctx.save();
         
         if (this.isDisappearing) {
-            // 消失动画
             const scale = 1 - this.disappearProgress;
             const alpha = 1 - this.disappearProgress;
             
             if (this.disappearType === 'explode') {
-                // 爆炸式消失：缩放 + 旋转 + 淡出
                 ctx.translate(this.currentX, this.currentY);
                 ctx.scale(1 + this.disappearProgress * 2, 1 + this.disappearProgress * 2);
                 ctx.rotate(this.disappearProgress * Math.PI);
                 ctx.globalAlpha = alpha;
                 this.drawNoteShape(ctx, 1);
             } else if (this.disappearType === 'shrink') {
-                // 收缩式消失
                 ctx.translate(this.currentX, this.currentY);
                 ctx.scale(scale, scale);
                 ctx.globalAlpha = alpha;
                 this.drawNoteShape(ctx, 1);
             } else if (this.disappearType === 'spin') {
-                // 旋转消失
                 ctx.translate(this.currentX, this.currentY);
                 ctx.scale(scale, scale);
                 ctx.rotate(this.disappearProgress * Math.PI * 4);
@@ -385,48 +403,96 @@ class Note {
                 this.drawNoteShape(ctx, 1);
             }
         } else {
-            // 正常渲染
             ctx.translate(this.currentX, this.currentY + this.bounceOffset);
-            ctx.rotate((this.rotationAngle * Math.PI) / 180);
+            ctx.rotate((this.angle * Math.PI) / 180);
+            
+            // 长按音符：绘制尾巴
+            if (this.isHold) {
+                this.drawHoldTail(ctx);
+            }
+            
             this.drawNoteShape(ctx, 1);
+            
+            // 双击音符：绘制标记
+            if (this.isDouble) {
+                this.drawDoubleMarker(ctx);
+            }
         }
         
         ctx.restore();
     }
     
-    /**
-     * 绘制音符形状（波普风格 - 音符图标）
-     */
+    drawHoldTail(ctx) {
+        const size = DYNAMIC_RHYTHM_CONFIG.noteSize;
+        const tailLength = size * 3 * (this.isHolding ? (1 - this.holdProgress) : 1);
+        
+        ctx.save();
+        
+        // 尾巴主体
+        ctx.fillStyle = this.color;
+        ctx.globalAlpha = 0.6;
+        
+        // 尾巴是一条粗线，符干方向
+        ctx.beginPath();
+        ctx.rect(-size * 0.3, -tailLength, size * 0.6, tailLength);
+        ctx.fill();
+        
+        // 边框
+        ctx.strokeStyle = POP_COLORS.BLACK;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        
+        // 长按进度指示
+        if (this.isHolding) {
+            ctx.globalAlpha = 0.8;
+            ctx.fillStyle = POP_COLORS.LIME_GREEN;
+            const progressHeight = tailLength * this.holdProgress;
+            ctx.fillRect(-size * 0.3, -progressHeight, size * 0.6, progressHeight);
+        }
+        
+        ctx.restore();
+    }
+    
+    drawDoubleMarker(ctx) {
+        const size = DYNAMIC_RHYTHM_CONFIG.noteSize;
+        
+        ctx.save();
+        ctx.fillStyle = POP_COLORS.CYAN_BLUE;
+        ctx.strokeStyle = POP_COLORS.BLACK;
+        ctx.lineWidth = 3;
+        
+        // 双音符标记：两个小圆点
+        ctx.beginPath();
+        ctx.arc(-size * 0.3, size * 0.4, size * 0.1, 0, Math.PI * 2);
+        ctx.arc(size * 0.3, size * 0.4, size * 0.1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.restore();
+    }
+    
     drawNoteShape(ctx, scale = 1) {
         const size = DYNAMIC_RHYTHM_CONFIG.noteSize * scale;
         
-        // 1. 粗黑边框阴影（波普风格特征）
         ctx.fillStyle = POP_COLORS.BLACK;
         this.drawMusicalNote(ctx, size + 8, 4, 4);
         
-        // 2. 主形状
         ctx.fillStyle = this.color;
         this.drawMusicalNote(ctx, size, 0, 0);
         
-        // 3. 黑色边框
         ctx.strokeStyle = POP_COLORS.BLACK;
         ctx.lineWidth = 4;
         this.drawMusicalNote(ctx, size, 0, 0, true);
         
-        // 4. 高光效果
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.beginPath();
         ctx.arc(-size/4, -size/4, size/6, 0, Math.PI * 2);
         ctx.fill();
     }
     
-    /**
-     * 绘制音符图标（♪ 符号）
-     */
     drawMusicalNote(ctx, size, offsetX, offsetY, isStroke = false) {
         ctx.beginPath();
         
-        // 音符头部（椭圆形）
         const headWidth = size * 0.8;
         const headHeight = size * 0.5;
         const headX = offsetX;
@@ -440,7 +506,6 @@ class Note {
             ctx.fill();
         }
         
-        // 符干
         ctx.beginPath();
         ctx.moveTo(headX + headWidth/3, headY - headHeight/2);
         ctx.lineTo(headX + headWidth/3, headY - size * 1.2);
@@ -454,7 +519,6 @@ class Note {
             ctx.stroke();
         }
         
-        // 符尾（装饰性）
         if (!isStroke) {
             ctx.beginPath();
             ctx.moveTo(headX + headWidth/3, headY - size * 1.2);
@@ -469,7 +533,7 @@ class Note {
 }
 
 // ==========================================
-// 谱面生成器
+// 谱面生成器 - 支持长按和双击
 // ==========================================
 class ChartGenerator {
     constructor(bpm = 120, timeSignature = { upper: 4, lower: 4 }) {
@@ -479,7 +543,7 @@ class ChartGenerator {
         this.measureDuration = this.beatDuration * timeSignature.upper;
     }
     
-    generate(duration = 60, density = 0.6) {
+    generate(duration = 120, density = 0.65) {
         const notes = [];
         const directions = ['up', 'down', 'left', 'right'];
         const colors = DYNAMIC_RHYTHM_CONFIG.colors.notes;
@@ -493,19 +557,96 @@ class ChartGenerator {
             
             const isDownbeat = (beat % this.timeSignature.upper) === 0;
             
-            if (isDownbeat && Math.random() < 0.4) {
-                // 重拍可以生成多个音符
-                const noteCount = Math.random() < 0.3 ? 2 : 1;
-                const usedDirections = new Set();
+            // 随机决定音符类型
+            const noteTypeRoll = Math.random();
+            let noteType = NOTE_TYPES.NORMAL;
+            
+            // 游戏后期（超过30秒后）开始出现长按和双击
+            if (targetTime > 30) {
+                if (noteTypeRoll < 0.15) {
+                    noteType = NOTE_TYPES.HOLD;
+                } else if (noteTypeRoll < 0.3 && isDownbeat) {
+                    noteType = NOTE_TYPES.DOUBLE;
+                }
+            }
+            
+            if (noteType === NOTE_TYPES.DOUBLE) {
+                // 双击模式：生成两个不同方向的音符
+                const dir1 = directions[Math.floor(Math.random() * directions.length)];
+                let dir2;
+                do {
+                    dir2 = directions[Math.floor(Math.random() * directions.length)];
+                } while (dir2 === dir1);
                 
-                for (let i = 0; i < noteCount; i++) {
-                    let direction;
-                    do {
-                        direction = directions[Math.floor(Math.random() * directions.length)];
-                    } while (usedDirections.has(direction) && usedDirections.size < directions.length);
+                const travelTime = 1.5;
+                const spawnTime = targetTime - travelTime;
+                
+                if (spawnTime >= 0) {
+                    const note1 = {
+                        direction: dir1,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        spawnTime,
+                        targetTime,
+                        type: NOTE_TYPES.DOUBLE,
+                        partnerDirection: dir2
+                    };
                     
-                    usedDirections.add(direction);
+                    const note2 = {
+                        direction: dir2,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        spawnTime,
+                        targetTime,
+                        type: NOTE_TYPES.DOUBLE,
+                        partnerDirection: dir1
+                    };
                     
+                    notes.push(note1, note2);
+                }
+            } else if (noteType === NOTE_TYPES.HOLD) {
+                // 长按模式
+                const direction = directions[Math.floor(Math.random() * directions.length)];
+                const travelTime = 1.5;
+                const spawnTime = targetTime - travelTime;
+                
+                if (spawnTime >= 0) {
+                    notes.push({
+                        direction,
+                        color: DYNAMIC_RHYTHM_CONFIG.colors.hold,
+                        spawnTime,
+                        targetTime,
+                        type: NOTE_TYPES.HOLD,
+                        holdDuration: 0.8 + Math.random() * 0.8
+                    });
+                }
+            } else {
+                // 普通音符
+                if (isDownbeat && Math.random() < 0.4) {
+                    const noteCount = Math.random() < 0.3 ? 2 : 1;
+                    const usedDirections = new Set();
+                    
+                    for (let i = 0; i < noteCount; i++) {
+                        let direction;
+                        do {
+                            direction = directions[Math.floor(Math.random() * directions.length)];
+                        } while (usedDirections.has(direction) && usedDirections.size < directions.length);
+                        
+                        usedDirections.add(direction);
+                        
+                        const travelTime = 1.5;
+                        const spawnTime = targetTime - travelTime;
+                        
+                        if (spawnTime >= 0) {
+                            notes.push({
+                                direction,
+                                color: colors[Math.floor(Math.random() * colors.length)],
+                                spawnTime,
+                                targetTime,
+                                type: NOTE_TYPES.NORMAL
+                            });
+                        }
+                    }
+                } else {
+                    const direction = directions[Math.floor(Math.random() * directions.length)];
                     const travelTime = 1.5;
                     const spawnTime = targetTime - travelTime;
                     
@@ -514,22 +655,10 @@ class ChartGenerator {
                             direction,
                             color: colors[Math.floor(Math.random() * colors.length)],
                             spawnTime,
-                            targetTime
+                            targetTime,
+                            type: NOTE_TYPES.NORMAL
                         });
                     }
-                }
-            } else {
-                const direction = directions[Math.floor(Math.random() * directions.length)];
-                const travelTime = 1.5;
-                const spawnTime = targetTime - travelTime;
-                
-                if (spawnTime >= 0) {
-                    notes.push({
-                        direction,
-                        color: colors[Math.floor(Math.random() * colors.length)],
-                        spawnTime,
-                        targetTime
-                    });
                 }
             }
         }
@@ -540,14 +669,14 @@ class ChartGenerator {
 }
 
 // ==========================================
-// 动态律动游戏主类 - 波普风格
+// 动态律动游戏主类 - 完整版本
 // ==========================================
 class DynamicRhythmGame extends GameInterface {
     static get metadata() {
         return {
             id: 'dynamic-rhythm',
             name: '动态律动',
-            description: '波普风格音乐节奏游戏，按空格键或方向键对准节拍！',
+            description: '波普风格音乐节奏游戏，支持普通、长按、双击模式！',
             icon: '🎵',
             colors: {
                 primary: POP_COLORS.ELECTRIC_PINK,
@@ -576,6 +705,19 @@ class DynamicRhythmGame extends GameInterface {
         this.beatInterval = 60 / this.bpm;
         this.lastBeatTime = 0;
         
+        // 统计数据
+        this.totalNotes = 0;
+        this.perfectCount = 0;
+        this.goodCount = 0;
+        this.missCount = 0;
+        
+        // 能量槽
+        this.energy = DYNAMIC_RHYTHM_CONFIG.initialEnergy;
+        this.isGameOver = false;
+        
+        // 游戏结束界面
+        this.gameOverScreen = null;
+        
         // 视觉效果
         this.hitEffects = [];
         this.particles = [];
@@ -583,12 +725,17 @@ class DynamicRhythmGame extends GameInterface {
         this.targetBgColor = this.currentBgColor;
         this.isInverted = false;
         
-        // Combo显示动画
+        // Combo显示 - 只在连击增加时显示
         this.comboScale = 1;
         this.comboTargetScale = 1;
         this.comboRotation = 0;
         this.comboColor = POP_COLORS.WHITE;
         this.lastCombo = 0;
+        this.comboDisplayTimer = 0;
+        this.showCombo = false;
+        
+        // 长按中的音符
+        this.holdingNote = null;
         
         // 按键反馈
         this.keyFeedback = {
@@ -599,10 +746,8 @@ class DynamicRhythmGame extends GameInterface {
             space: { pressed: false, scale: 1 }
         };
         
-        // 波点纹理缓存
         this.dotPattern = null;
         
-        // 音频管理器
         this.audioManager = new AudioManager();
         this.keysPressed = {};
         this.ctx = null;
@@ -617,7 +762,7 @@ class DynamicRhythmGame extends GameInterface {
         this.resetGame();
         this.canvas.classList.add('bg-transition');
         
-        console.log('动态律动游戏已初始化（波普风格）');
+        console.log('动态律动游戏已初始化（完整版）');
     }
     
     createCanvas() {
@@ -635,13 +780,9 @@ class DynamicRhythmGame extends GameInterface {
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
         
-        // 创建波点纹理
         this.createDotPattern();
     }
     
-    /**
-     * 创建波点纹理（波普风格核心元素）
-     */
     createDotPattern() {
         const patternCanvas = document.createElement('canvas');
         const pctx = patternCanvas.getContext('2d');
@@ -666,7 +807,6 @@ class DynamicRhythmGame extends GameInterface {
         canvasElement.width = this.canvas.clientWidth;
         canvasElement.height = this.canvas.clientHeight;
         
-        // 重新创建波点纹理
         if (this.ctx) {
             this.createDotPattern();
         }
@@ -675,6 +815,7 @@ class DynamicRhythmGame extends GameInterface {
     generateChart() {
         const generator = new ChartGenerator(this.bpm);
         this.chartData = generator.generate(120, 0.65);
+        this.totalNotes = this.chartData.length;
         console.log(`已生成 ${this.chartData.length} 个音符`);
     }
     
@@ -697,29 +838,39 @@ class DynamicRhythmGame extends GameInterface {
         
         this.startScreen.innerHTML = `
             <div style="text-align: center; padding: 40px; background: ${POP_COLORS.BLACK}; border: 8px solid ${POP_COLORS.NEON_YELLOW}; box-shadow: 12px 12px 0px rgba(0,0,0,0.5);">
-                <h1 style="font-size: 5rem; font-weight: 900; margin-bottom: 20px; color: ${POP_COLORS.ELECTRIC_PINK}; text-shadow: 6px 6px 0px ${POP_COLORS.BLACK};">
+                <h1 style="font-size: 4rem; font-weight: 900; margin-bottom: 15px; color: ${POP_COLORS.ELECTRIC_PINK}; text-shadow: 6px 6px 0px ${POP_COLORS.BLACK};">
                     🎵 动态律动
                 </h1>
-                <p style="font-size: 1.8rem; margin-bottom: 40px; color: ${POP_COLORS.WHITE}; font-weight: 700;">
+                <p style="font-size: 1.5rem; margin-bottom: 30px; color: ${POP_COLORS.WHITE}; font-weight: 700;">
                     波普风格音乐节奏游戏
                 </p>
-                <div style="display: flex; gap: 30px; margin-bottom: 40px; justify-content: center; flex-wrap: wrap;">
-                    <div style="text-align: center; padding: 25px; background: ${POP_COLORS.NEON_YELLOW}; border: 6px solid ${POP_COLORS.BLACK}; box-shadow: 8px 8px 0px rgba(0,0,0,0.5);">
-                        <div style="font-size: 3rem; margin-bottom: 15px;">♪ ♫ ♬</div>
-                        <div style="color: ${POP_COLORS.BLACK}; font-weight: 800; font-size: 1.2rem;">音符图标</div>
+                <div style="display: flex; gap: 20px; margin-bottom: 30px; justify-content: center; flex-wrap: wrap;">
+                    <div style="text-align: center; padding: 20px; background: ${POP_COLORS.NEON_YELLOW}; border: 6px solid ${POP_COLORS.BLACK}; box-shadow: 8px 8px 0px rgba(0,0,0,0.5);">
+                        <div style="font-size: 2.5rem; margin-bottom: 10px;">♪</div>
+                        <div style="color: ${POP_COLORS.BLACK}; font-weight: 800; font-size: 1rem;">普通音符</div>
                     </div>
-                    <div style="text-align: center; padding: 25px; background: ${POP_COLORS.CYAN_BLUE}; border: 6px solid ${POP_COLORS.BLACK}; box-shadow: 8px 8px 0px rgba(0,0,0,0.5);">
-                        <div style="font-size: 2.5rem; margin-bottom: 15px;">↑↓←→</div>
-                        <div style="color: ${POP_COLORS.BLACK}; font-weight: 800; font-size: 1.2rem;">方向键击打</div>
+                    <div style="text-align: center; padding: 20px; background: ${POP_COLORS.LIME_GREEN}; border: 6px solid ${POP_COLORS.BLACK}; box-shadow: 8px 8px 0px rgba(0,0,0,0.5);">
+                        <div style="font-size: 2.5rem; margin-bottom: 10px;">♪══</div>
+                        <div style="color: ${POP_COLORS.BLACK}; font-weight: 800; font-size: 1rem;">长按音符</div>
                     </div>
-                    <div style="text-align: center; padding: 25px; background: ${POP_COLORS.LIME_GREEN}; border: 6px solid ${POP_COLORS.BLACK}; box-shadow: 8px 8px 0px rgba(0,0,0,0.5);">
-                        <div style="font-size: 2.5rem; margin-bottom: 15px;">SPACE</div>
-                        <div style="color: ${POP_COLORS.BLACK}; font-weight: 800; font-size: 1.2rem;">空格键击打</div>
+                    <div style="text-align: center; padding: 20px; background: ${POP_COLORS.CYAN_BLUE}; border: 6px solid ${POP_COLORS.BLACK}; box-shadow: 8px 8px 0px rgba(0,0,0,0.5);">
+                        <div style="font-size: 2.5rem; margin-bottom: 10px;">♪ ♪</div>
+                        <div style="color: ${POP_COLORS.BLACK}; font-weight: 800; font-size: 1rem;">双击音符</div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 20px; margin-bottom: 30px; justify-content: center; flex-wrap: wrap;">
+                    <div style="text-align: center; padding: 20px; background: ${POP_COLORS.WHITE}; border: 6px solid ${POP_COLORS.BLACK}; box-shadow: 8px 8px 0px rgba(0,0,0,0.5);">
+                        <div style="font-size: 2rem; margin-bottom: 10px;">↑↓←→</div>
+                        <div style="color: ${POP_COLORS.BLACK}; font-weight: 800; font-size: 1rem;">方向键</div>
+                    </div>
+                    <div style="text-align: center; padding: 20px; background: ${POP_COLORS.WHITE}; border: 6px solid ${POP_COLORS.BLACK}; box-shadow: 8px 8px 0px rgba(0,0,0,0.5);">
+                        <div style="font-size: 2rem; margin-bottom: 10px;">SPACE</div>
+                        <div style="color: ${POP_COLORS.BLACK}; font-weight: 800; font-size: 1rem;">空格键</div>
                     </div>
                 </div>
                 <button id="start-btn" style="
-                    padding: 25px 80px;
-                    font-size: 2rem;
+                    padding: 20px 60px;
+                    font-size: 1.8rem;
                     font-weight: 900;
                     background: ${POP_COLORS.NEON_YELLOW};
                     color: ${POP_COLORS.BLACK};
@@ -729,9 +880,9 @@ class DynamicRhythmGame extends GameInterface {
                     transition: all 0.1s ease;
                     text-transform: uppercase;
                 ">
-                    ▶ 点击开始游戏
+                    ▶ 开始游戏
                 </button>
-                <p style="margin-top: 30px; color: ${POP_COLORS.WHITE}; font-size: 1.2rem;">
+                <p style="margin-top: 20px; color: ${POP_COLORS.WHITE}; font-size: 1rem;">
                     或按任意键开始
                 </p>
             </div>
@@ -792,6 +943,19 @@ class DynamicRhythmGame extends GameInterface {
         this.comboScale = 1;
         this.comboTargetScale = 1;
         this.lastCombo = 0;
+        this.showCombo = false;
+        this.comboDisplayTimer = 0;
+        this.holdingNote = null;
+        this.isGameOver = false;
+        this.gameOverScreen = null;
+        
+        // 重置统计
+        this.perfectCount = 0;
+        this.goodCount = 0;
+        this.missCount = 0;
+        
+        // 重置能量槽
+        this.energy = DYNAMIC_RHYTHM_CONFIG.initialEnergy;
         
         this.updateScore(0);
         this.updateCombo(0);
@@ -816,9 +980,199 @@ class DynamicRhythmGame extends GameInterface {
         this.audioManager.stopMusic();
     }
     
-    /**
-     * 渲染游戏帧（波普风格）
-     */
+    // 游戏结束
+    gameOver() {
+        this.isGameOver = true;
+        this.isRunning = false;
+        
+        // 停止长按
+        if (this.holdingNote) {
+            this.holdingNote.endHold();
+            this.holdingNote = null;
+        }
+        
+        this.createGameOverScreen();
+    }
+    
+    // 创建游戏结束界面
+    createGameOverScreen() {
+        this.gameOverScreen = document.createElement('div');
+        this.gameOverScreen.className = 'game-over-screen';
+        this.gameOverScreen.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 200;
+        `;
+        
+        // 计算评价
+        const rating = this.calculateRating();
+        
+        // 战绩卡片
+        this.gameOverScreen.innerHTML = `
+            <div style="
+                text-align: center;
+                padding: 50px;
+                background: linear-gradient(135deg, ${POP_COLORS.ELECTRIC_PINK} 0%, ${POP_COLORS.CYAN_BLUE} 100%);
+                border: 12px solid ${POP_COLORS.BLACK};
+                box-shadow: 16px 16px 0px rgba(0,0,0,0.6);
+                min-width: 400px;
+            ">
+                <h2 style="
+                    font-size: 3rem;
+                    font-weight: 900;
+                    margin-bottom: 30px;
+                    color: ${POP_COLORS.WHITE};
+                    text-shadow: 6px 6px 0px ${POP_COLORS.BLACK};
+                ">
+                    GAME OVER
+                </h2>
+                
+                <div style="
+                    font-size: 8rem;
+                    font-weight: 900;
+                    margin-bottom: 30px;
+                    color: ${rating.color};
+                    text-shadow: 8px 8px 0px ${POP_COLORS.BLACK};
+                ">
+                    ${rating.grade}
+                </div>
+                
+                <div style="
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 20px;
+                    margin-bottom: 30px;
+                ">
+                    <div style="
+                        padding: 15px;
+                        background: ${POP_COLORS.NEON_YELLOW};
+                        border: 4px solid ${POP_COLORS.BLACK};
+                        box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
+                    ">
+                        <div style="font-size: 1rem; color: ${POP_COLORS.BLACK}; font-weight: 700;">得分</div>
+                        <div style="font-size: 2rem; color: ${POP_COLORS.BLACK}; font-weight: 900;">${this.score}</div>
+                    </div>
+                    <div style="
+                        padding: 15px;
+                        background: ${POP_COLORS.LIME_GREEN};
+                        border: 4px solid ${POP_COLORS.BLACK};
+                        box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
+                    ">
+                        <div style="font-size: 1rem; color: ${POP_COLORS.BLACK}; font-weight: 700;">最高连击</div>
+                        <div style="font-size: 2rem; color: ${POP_COLORS.BLACK}; font-weight: 900;">${this.maxCombo}</div>
+                    </div>
+                    <div style="
+                        padding: 15px;
+                        background: ${POP_COLORS.CYAN_BLUE};
+                        border: 4px solid ${POP_COLORS.BLACK};
+                        box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
+                    ">
+                        <div style="font-size: 1rem; color: ${POP_COLORS.BLACK}; font-weight: 700;">PERFECT</div>
+                        <div style="font-size: 2rem; color: ${POP_COLORS.BLACK}; font-weight: 900;">${this.perfectCount}</div>
+                    </div>
+                    <div style="
+                        padding: 15px;
+                        background: ${POP_COLORS.HOT_PINK};
+                        border: 4px solid ${POP_COLORS.BLACK};
+                        box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
+                    ">
+                        <div style="font-size: 1rem; color: ${POP_COLORS.BLACK}; font-weight: 700;">GOOD</div>
+                        <div style="font-size: 2rem; color: ${POP_COLORS.BLACK}; font-weight: 900;">${this.goodCount}</div>
+                    </div>
+                </div>
+                
+                <div style="
+                    margin-bottom: 30px;
+                    padding: 15px;
+                    background: ${POP_COLORS.ORANGE_RED};
+                    border: 4px solid ${POP_COLORS.BLACK};
+                    box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
+                ">
+                    <div style="font-size: 1rem; color: ${POP_COLORS.WHITE}; font-weight: 700;">MISS</div>
+                    <div style="font-size: 2rem; color: ${POP_COLORS.WHITE}; font-weight: 900;">${this.missCount}</div>
+                </div>
+                
+                <div style="display: flex; gap: 20px; justify-content: center;">
+                    <button id="retry-btn" style="
+                        padding: 15px 40px;
+                        font-size: 1.5rem;
+                        font-weight: 900;
+                        background: ${POP_COLORS.NEON_YELLOW};
+                        color: ${POP_COLORS.BLACK};
+                        border: 6px solid ${POP_COLORS.BLACK};
+                        cursor: pointer;
+                        box-shadow: 6px 6px 0px rgba(0,0,0,0.5);
+                        transition: all 0.1s ease;
+                    ">
+                        🔄 再来一局
+                    </button>
+                    <button id="exit-btn" style="
+                        padding: 15px 40px;
+                        font-size: 1.5rem;
+                        font-weight: 900;
+                        background: ${POP_COLORS.WHITE};
+                        color: ${POP_COLORS.BLACK};
+                        border: 6px solid ${POP_COLORS.BLACK};
+                        cursor: pointer;
+                        box-shadow: 6px 6px 0px rgba(0,0,0,0.5);
+                        transition: all 0.1s ease;
+                    ">
+                        🚪 返回主页
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        this.canvas.appendChild(this.gameOverScreen);
+        
+        const retryBtn = document.getElementById('retry-btn');
+        const exitBtn = document.getElementById('exit-btn');
+        
+        retryBtn.addEventListener('click', () => {
+            this.gameOverScreen.remove();
+            this.gameOverScreen = null;
+            this.startActualGame();
+        });
+        
+        exitBtn.addEventListener('click', () => {
+            this.context.gameManager.exitGame();
+        });
+        
+        [retryBtn, exitBtn].forEach(btn => {
+            btn.addEventListener('mouseover', () => {
+                btn.style.transform = 'translate(-2px, -2px)';
+                btn.style.boxShadow = '8px 8px 0px rgba(0,0,0,0.5)';
+            });
+            btn.addEventListener('mouseout', () => {
+                btn.style.transform = 'translate(0, 0)';
+                btn.style.boxShadow = '6px 6px 0px rgba(0,0,0,0.5)';
+            });
+        });
+    }
+    
+    // 计算评价
+    calculateRating() {
+        const totalHits = this.perfectCount + this.goodCount + this.missCount;
+        const accuracy = totalHits > 0 ? (this.perfectCount * 100 + this.goodCount * 50) / (totalHits * 100) : 0;
+        
+        if (accuracy >= 0.95 && this.maxCombo >= 50) {
+            return { grade: 'S', color: POP_COLORS.NEON_YELLOW };
+        } else if (accuracy >= 0.85) {
+            return { grade: 'A', color: POP_COLORS.LIME_GREEN };
+        } else if (accuracy >= 0.70) {
+            return { grade: 'B', color: POP_COLORS.CYAN_BLUE };
+        } else {
+            return { grade: 'C', color: POP_COLORS.ORANGE_RED };
+        }
+    }
+    
     render(deltaTime) {
         if (!this.isRunning || !this.ctx || this.gameStartTime === undefined) return;
         
@@ -828,51 +1182,39 @@ class DynamicRhythmGame extends GameInterface {
         const width = this.ctx.canvas.width;
         const height = this.ctx.canvas.height;
         
-        // 1. 绘制背景（波普风格 - 高饱和色 + 波点底纹）
+        this.ctx.clearRect(0, 0, width, height);
+        
         this.renderBackground(width, height);
         
-        // 2. 生成新音符
         this.spawnNotes(currentTime);
         
-        // 3. 更新节拍器
         this.updateMetronome(currentTime, deltaTime);
         
-        // 4. 更新和渲染音符
         this.updateAndRenderNotes(currentTime, width, height);
         
-        // 5. 渲染节拍器
         this.renderMetronome(width, height);
         
-        // 6. 渲染方向指示器（音符图标）
         this.renderDirectionIndicators(width, height, deltaTime);
         
-        // 7. 渲染Combo数字（中心巨大显示）
+        this.renderEnergyBar(width, height);
+        
         this.renderComboDisplay(width, height, deltaTime);
         
-        // 8. 渲染粒子效果
         this.renderParticles(deltaTime);
         
-        // 9. 渲染击中效果
         this.renderHitEffects(deltaTime);
         
-        // 10. 更新按键反馈动画
         this.updateKeyFeedback(deltaTime);
     }
     
-    /**
-     * 渲染背景（波普风格 - 高饱和色 + 波点底纹）
-     */
     renderBackground(width, height) {
-        // 平滑过渡背景色
         if (this.currentBgColor !== this.targetBgColor) {
             this.currentBgColor = this.lerpColor(this.currentBgColor, this.targetBgColor, 0.05);
         }
         
-        // 填充背景色
         this.ctx.fillStyle = this.currentBgColor;
         this.ctx.fillRect(0, 0, width, height);
         
-        // 波点底纹（波普风格核心）
         if (this.dotPattern) {
             this.ctx.save();
             this.ctx.globalAlpha = this.isInverted ? 0.2 : 0.15;
@@ -881,7 +1223,6 @@ class DynamicRhythmGame extends GameInterface {
             this.ctx.restore();
         }
         
-        // 色彩反转效果（高连击时）
         if (this.isInverted) {
             this.ctx.save();
             this.ctx.globalCompositeOperation = 'difference';
@@ -891,9 +1232,6 @@ class DynamicRhythmGame extends GameInterface {
         }
     }
     
-    /**
-     * 颜色插值
-     */
     lerpColor(color1, color2, t) {
         const c1 = this.hexToRgb(color1);
         const c2 = this.hexToRgb(color2);
@@ -927,7 +1265,12 @@ class DynamicRhythmGame extends GameInterface {
                     noteData.direction,
                     noteData.color,
                     noteData.spawnTime,
-                    noteData.targetTime
+                    noteData.targetTime,
+                    noteData.type || NOTE_TYPES.NORMAL,
+                    {
+                        holdDuration: noteData.holdDuration,
+                        partnerDirection: noteData.partnerDirection
+                    }
                 );
                 this.activeNotes.push(note);
                 this.noteSpawnIndex++;
@@ -938,7 +1281,6 @@ class DynamicRhythmGame extends GameInterface {
     }
     
     updateMetronome(currentTime, deltaTime) {
-        // 脉冲动画
         this.metronomePulse += deltaTime * 0.003 * this.pulseDirection;
         if (this.metronomePulse > 1) {
             this.metronomePulse = 1;
@@ -948,7 +1290,6 @@ class DynamicRhythmGame extends GameInterface {
             this.pulseDirection = 1;
         }
         
-        // 检查节拍
         const beats = Math.floor(currentTime / this.beatInterval);
         const beatTime = beats * this.beatInterval;
         
@@ -973,9 +1314,6 @@ class DynamicRhythmGame extends GameInterface {
         });
     }
     
-    /**
-     * 渲染节拍器（波普风格）
-     */
     renderMetronome(width, height) {
         const ctx = this.ctx;
         const centerX = width / 2;
@@ -983,7 +1321,6 @@ class DynamicRhythmGame extends GameInterface {
         const baseSize = DYNAMIC_RHYTHM_CONFIG.metronomeSize;
         const pulseSize = baseSize + (this.metronomePulse * 40);
         
-        // 外圈（完美判定圈 - 波普风格粗边框）
         ctx.beginPath();
         ctx.arc(centerX, centerY, DYNAMIC_RHYTHM_CONFIG.perfectRadius, 0, Math.PI * 2);
         ctx.strokeStyle = POP_COLORS.WHITE;
@@ -992,7 +1329,6 @@ class DynamicRhythmGame extends GameInterface {
         ctx.stroke();
         ctx.setLineDash([]);
         
-        // 中圈（普通判定圈）
         ctx.beginPath();
         ctx.arc(centerX, centerY, DYNAMIC_RHYTHM_CONFIG.hitRadius, 0, Math.PI * 2);
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
@@ -1001,24 +1337,19 @@ class DynamicRhythmGame extends GameInterface {
         ctx.stroke();
         ctx.setLineDash([]);
         
-        // 中心节拍器 - 波普风格
         ctx.save();
         ctx.translate(centerX, centerY);
         
-        // 1. 粗黑阴影（波普风格特征）
         ctx.fillStyle = POP_COLORS.BLACK;
         this.drawPopMetronome(ctx, pulseSize + 12, 8, 8);
         
-        // 2. 主形状
         ctx.fillStyle = DYNAMIC_RHYTHM_CONFIG.colors.metronome;
         this.drawPopMetronome(ctx, pulseSize, 0, 0);
         
-        // 3. 粗黑边框
         ctx.strokeStyle = POP_COLORS.BLACK;
         ctx.lineWidth = 8;
         this.drawPopMetronome(ctx, pulseSize, 0, 0, true);
         
-        // 4. 内部装饰（几何图案）
         ctx.fillStyle = POP_COLORS.WHITE;
         ctx.beginPath();
         ctx.arc(0, 0, pulseSize / 4, 0, Math.PI * 2);
@@ -1027,7 +1358,6 @@ class DynamicRhythmGame extends GameInterface {
         ctx.lineWidth = 4;
         ctx.stroke();
         
-        // 5. 音符图标装饰
         ctx.fillStyle = POP_COLORS.BLACK;
         ctx.font = `bold ${pulseSize * 0.6}px Arial`;
         ctx.textAlign = 'center';
@@ -1037,9 +1367,6 @@ class DynamicRhythmGame extends GameInterface {
         ctx.restore();
     }
     
-    /**
-     * 绘制波普风格节拍器（方形带圆角）
-     */
     drawPopMetronome(ctx, size, offsetX, offsetY, isStroke = false) {
         const radius = size * 0.2;
         const halfSize = size / 2;
@@ -1063,9 +1390,6 @@ class DynamicRhythmGame extends GameInterface {
         }
     }
     
-    /**
-     * 渲染方向指示器（音符图标替代箭头）
-     */
     renderDirectionIndicators(width, height, deltaTime) {
         const ctx = this.ctx;
         const centerX = width / 2;
@@ -1074,50 +1398,41 @@ class DynamicRhythmGame extends GameInterface {
         const size = 50;
         
         const directions = [
-            { dir: 'up', key: 'ArrowUp', x: centerX, y: centerY - indicatorRadius, angle: 0 },
-            { dir: 'down', key: 'ArrowDown', x: centerX, y: centerY + indicatorRadius, angle: 180 },
-            { dir: 'left', key: 'ArrowLeft', x: centerX - indicatorRadius, y: centerY, angle: 90 },
-            { dir: 'right', key: 'ArrowRight', x: centerX + indicatorRadius, y: centerY, angle: -90 }
+            { dir: 'up', key: 'ArrowUp', x: centerX, y: centerY - indicatorRadius, angle: 180 },
+            { dir: 'down', key: 'ArrowDown', x: centerX, y: centerY + indicatorRadius, angle: 0 },
+            { dir: 'left', key: 'ArrowLeft', x: centerX - indicatorRadius, y: centerY, angle: -90 },
+            { dir: 'right', key: 'ArrowRight', x: centerX + indicatorRadius, y: centerY, angle: 90 }
         ];
         
         directions.forEach(({ dir, key, x, y, angle }) => {
-            // 检查该方向是否有即将到来的音符
             const hasNote = this.activeNotes.some(note => 
                 note.direction === dir && 
                 note.isActive &&
                 Math.abs(this.elapsedTime - note.targetTime) < 0.5
             );
             
-            // 检查按键状态
             const isPressed = this.keysPressed[key] || this.keysPressed[' '];
-            const feedback = this.keyFeedback[dir];
             
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate((angle * Math.PI) / 180);
             
-            // 缩放效果（按键时）
             const scale = isPressed ? 1.3 : 1;
             ctx.scale(scale, scale);
             
-            // 发光效果
             if (isPressed || hasNote) {
                 ctx.shadowColor = hasNote ? POP_COLORS.NEON_YELLOW : POP_COLORS.LIME_GREEN;
                 ctx.shadowBlur = isPressed ? 30 : 15;
             }
             
-            // 绘制音符图标
             const noteSize = size;
             
-            // 阴影
             ctx.fillStyle = POP_COLORS.BLACK;
             this.drawIndicatorNote(ctx, noteSize + 6, 3, 3);
             
-            // 主形状
             ctx.fillStyle = hasNote ? POP_COLORS.NEON_YELLOW : (isPressed ? POP_COLORS.LIME_GREEN : 'rgba(255, 255, 255, 0.6)');
             this.drawIndicatorNote(ctx, noteSize, 0, 0);
             
-            // 边框
             ctx.strokeStyle = POP_COLORS.BLACK;
             ctx.lineWidth = 4;
             this.drawIndicatorNote(ctx, noteSize, 0, 0, true);
@@ -1126,13 +1441,9 @@ class DynamicRhythmGame extends GameInterface {
         });
     }
     
-    /**
-     * 绘制指示器音符图标
-     */
     drawIndicatorNote(ctx, size, offsetX, offsetY, isStroke = false) {
         ctx.beginPath();
         
-        // 音符头部
         const headWidth = size * 0.8;
         const headHeight = size * 0.5;
         
@@ -1144,41 +1455,99 @@ class DynamicRhythmGame extends GameInterface {
             ctx.fill();
         }
         
-        // 符干
         if (!isStroke) {
             ctx.beginPath();
             ctx.moveTo(offsetX + headWidth/3, offsetY - headHeight/2);
             ctx.lineTo(offsetX + headWidth/3, offsetY - size * 1.0);
             ctx.lineWidth = size * 0.12;
-            ctx.strokeStyle = isStroke ? POP_COLORS.BLACK : ctx.fillStyle;
+            ctx.strokeStyle = ctx.fillStyle;
             ctx.stroke();
         }
     }
     
-    /**
-     * 渲染中心巨大Combo数字
-     */
-    renderComboDisplay(width, height, deltaTime) {
-        if (this.combo <= 0) return;
-        
+    // 渲染能量槽
+    renderEnergyBar(width, height) {
         const ctx = this.ctx;
-        const centerX = width / 2;
-        const centerY = height / 2;
+        const barWidth = Math.min(400, width * 0.4);
+        const barHeight = 30;
+        const x = (width - barWidth) / 2;
+        const y = 20;
         
-        // Combo增加时的动画
+        ctx.save();
+        
+        // 背景槽
+        ctx.fillStyle = POP_COLORS.BLACK;
+        ctx.fillRect(x - 4, y - 4, barWidth + 8, barHeight + 8);
+        
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(x, y, barWidth, barHeight);
+        
+        // 能量条
+        const energyPercent = this.energy / DYNAMIC_RHYTHM_CONFIG.maxEnergy;
+        const fillWidth = barWidth * energyPercent;
+        
+        // 颜色变化：绿色(高) -> 黄色(中) -> 红色(低)
+        let barColor;
+        if (energyPercent > 0.6) {
+            barColor = POP_COLORS.LIME_GREEN;
+        } else if (energyPercent > 0.3) {
+            barColor = POP_COLORS.NEON_YELLOW;
+        } else {
+            barColor = POP_COLORS.ORANGE_RED;
+        }
+        
+        ctx.fillStyle = barColor;
+        ctx.fillRect(x, y, fillWidth, barHeight);
+        
+        // 边框
+        ctx.strokeStyle = POP_COLORS.WHITE;
+        ctx.lineWidth = 4;
+        ctx.strokeRect(x, y, barWidth, barHeight);
+        
+        // 文字
+        ctx.fillStyle = POP_COLORS.WHITE;
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`ENERGY: ${Math.floor(this.energy)}%`, x + barWidth/2, y + barHeight + 8);
+        
+        ctx.restore();
+    }
+    
+    renderComboDisplay(width, height, deltaTime) {
+        if (this.combo <= 0) {
+            this.showCombo = false;
+            return;
+        }
+        
+        // 连击增加时显示
         if (this.combo > this.lastCombo) {
+            this.showCombo = true;
+            this.comboDisplayTimer = 60;
             this.comboTargetScale = 1.5;
             this.comboRotation = (Math.random() - 0.5) * 20;
         }
         this.lastCombo = this.combo;
         
-        // 平滑缩放
+        // 计时器递减
+        if (this.showCombo) {
+            this.comboDisplayTimer--;
+            if (this.comboDisplayTimer <= 0) {
+                this.showCombo = false;
+            }
+        }
+        
+        if (!this.showCombo) return;
+        
+        const ctx = this.ctx;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        
         this.comboScale += (this.comboTargetScale - this.comboScale) * 0.15;
         if (Math.abs(this.comboTargetScale - this.comboScale) < 0.01) {
             this.comboTargetScale = 1;
         }
         
-        // 旋转衰减
         this.comboRotation *= 0.9;
         
         ctx.save();
@@ -1186,7 +1555,10 @@ class DynamicRhythmGame extends GameInterface {
         ctx.rotate((this.comboRotation * Math.PI) / 180);
         ctx.scale(this.comboScale, this.comboScale);
         
-        // 根据连击数选择颜色
+        // 渐隐效果
+        const alpha = Math.min(1, this.comboDisplayTimer / 30);
+        ctx.globalAlpha = alpha;
+        
         let comboColor = POP_COLORS.WHITE;
         if (this.combo >= 100) comboColor = POP_COLORS.MAGENTA;
         else if (this.combo >= 50) comboColor = POP_COLORS.ORANGE_RED;
@@ -1195,30 +1567,24 @@ class DynamicRhythmGame extends GameInterface {
         else if (this.combo >= 10) comboColor = POP_COLORS.CYAN_BLUE;
         else if (this.combo >= 5) comboColor = POP_COLORS.NEON_YELLOW;
         
-        // 发光效果
         ctx.shadowColor = comboColor;
         ctx.shadowBlur = 30;
         
-        // Combo文字大小
         const fontSize = Math.min(200, 100 + this.combo * 2);
         
-        // 1. 粗黑阴影（波普风格）
         ctx.fillStyle = POP_COLORS.BLACK;
         ctx.font = `900 ${fontSize}px Arial Black, Arial, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(this.combo.toString(), 8, 8);
         
-        // 2. 主文字
         ctx.fillStyle = comboColor;
         ctx.fillText(this.combo.toString(), 0, 0);
         
-        // 3. 描边
         ctx.strokeStyle = POP_COLORS.BLACK;
         ctx.lineWidth = 6;
         ctx.strokeText(this.combo.toString(), 0, 0);
         
-        // "COMBO"文字
         ctx.shadowBlur = 15;
         ctx.font = `bold ${fontSize * 0.3}px Arial`;
         ctx.fillStyle = POP_COLORS.WHITE;
@@ -1230,9 +1596,6 @@ class DynamicRhythmGame extends GameInterface {
         ctx.restore();
     }
     
-    /**
-     * 渲染粒子效果
-     */
     renderParticles(deltaTime) {
         this.particles = this.particles.filter(particle => {
             const isAlive = particle.update(deltaTime);
@@ -1243,9 +1606,6 @@ class DynamicRhythmGame extends GameInterface {
         });
     }
     
-    /**
-     * 创建粒子爆炸效果
-     */
     createParticleExplosion(x, y, color, count = 30) {
         const colors = [
             color,
@@ -1272,38 +1632,15 @@ class DynamicRhythmGame extends GameInterface {
                 ctx.save();
                 ctx.globalAlpha = effect.alpha;
                 
-                // 扩散圆圈（波普风格粗边框）
                 ctx.beginPath();
                 ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
                 ctx.strokeStyle = effect.color;
                 ctx.lineWidth = 10;
                 ctx.stroke();
                 
-                // 内部填充
                 ctx.globalAlpha = effect.alpha * 0.3;
                 ctx.fillStyle = effect.color;
                 ctx.fill();
-                
-                // 文字提示
-                if (effect.text) {
-                    ctx.globalAlpha = effect.alpha;
-                    ctx.font = 'bold 72px Arial Black, Arial, sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    
-                    // 阴影
-                    ctx.fillStyle = POP_COLORS.BLACK;
-                    ctx.fillText(effect.text, effect.x + 5, effect.y - effect.radius + 5);
-                    
-                    // 主文字
-                    ctx.fillStyle = effect.color;
-                    ctx.fillText(effect.text, effect.x, effect.y - effect.radius);
-                    
-                    // 描边
-                    ctx.strokeStyle = POP_COLORS.BLACK;
-                    ctx.lineWidth = 4;
-                    ctx.strokeText(effect.text, effect.x, effect.y - effect.radius);
-                }
                 
                 ctx.restore();
                 return true;
@@ -1312,171 +1649,240 @@ class DynamicRhythmGame extends GameInterface {
         });
     }
     
-    /**
-     * 更新按键反馈动画
-     */
-    updateKeyFeedback(deltaTime) {
-        Object.keys(this.keyFeedback).forEach(key => {
-            const feedback = this.keyFeedback[key];
-            if (feedback.pressed) {
-                feedback.scale = Math.max(1, feedback.scale - 0.05);
-                if (feedback.scale <= 1) {
-                    feedback.pressed = false;
-                }
-            }
-        });
-    }
-    
-    updateBackgroundColor() {
-        const stages = DYNAMIC_RHYTHM_CONFIG.comboColorStages;
-        let newColor = stages[0].color;
-        let newInverted = false;
-        
-        for (let i = stages.length - 1; i >= 0; i--) {
-            if (this.combo >= stages[i].minCombo) {
-                newColor = stages[i].color;
-                newInverted = stages[i].invert || false;
-                break;
-            }
-        }
-        
-        if (newColor !== this.targetBgColor) {
-            this.targetBgColor = newColor;
-            this.isInverted = newInverted;
-        }
-    }
-    
-    handleInput(eventType, event) {
-        if (eventType === 'keydown') {
-            this.audioManager.init();
-            
-            const key = event.key;
-            const currentTime = this.elapsedTime;
-            
-            const validKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '];
-            
-            if (validKeys.includes(key) && !this.keysPressed[key]) {
-                this.keysPressed[key] = true;
-                
-                // 记录按键反馈
-                if (key === 'ArrowUp') this.keyFeedback.up.pressed = true;
-                if (key === 'ArrowDown') this.keyFeedback.down.pressed = true;
-                if (key === 'ArrowLeft') this.keyFeedback.left.pressed = true;
-                if (key === 'ArrowRight') this.keyFeedback.right.pressed = true;
-                if (key === ' ') this.keyFeedback.space.pressed = true;
-                
-                this.attemptHit(key, currentTime);
-            }
-        } else if (eventType === 'keyup') {
-            this.keysPressed[event.key] = false;
-        }
-    }
-    
-    attemptHit(key, currentTime) {
-        const centerX = this.ctx.canvas.width / 2;
-        const centerY = this.ctx.canvas.height / 2;
-        
-        let hitNote = null;
-        let hitQuality = null;
-        
-        const sortedNotes = [...this.activeNotes]
-            .filter(note => note.isActive && !note.isDisappearing)
-            .sort((a, b) => Math.abs(a.targetTime - currentTime) - Math.abs(b.targetTime - currentTime));
-        
-        for (const note of sortedNotes) {
-            if (key !== ' ' && note.keyCode !== key) continue;
-            
-            const quality = note.checkHit(currentTime);
-            if (quality) {
-                hitNote = note;
-                hitQuality = quality;
-                break;
-            }
-        }
-        
-        if (hitNote && hitQuality) {
-            hitNote.hit(hitQuality);
-            this.handleHit(hitQuality, hitNote.currentX || centerX, hitNote.currentY || centerY);
-        }
-    }
-    
-    handleHit(quality, x, y) {
-        let points = 0;
-        let color = '';
-        let text = '';
-        
-        switch (quality) {
-            case 'perfect':
-                points = DYNAMIC_RHYTHM_CONFIG.perfectScore;
-                color = POP_COLORS.WHITE;
-                text = 'PERFECT!';
-                
-                this.combo++;
-                points = Math.floor(points * (1 + this.combo * 0.01));
-                
-                // 增强版：全屏地震晃动
-                this.triggerShake(50, 600);
-                this.triggerFlash('rgba(255, 255, 255, 0.5)', 300);
-                
-                // 粒子爆炸效果
-                this.createParticleExplosion(x, y, POP_COLORS.ELECTRIC_PINK, 50);
-                
-                this.audioManager.playSound('perfect', { pitch: 1.2, volume: 1 });
-                
-                break;
-                
-            case 'good':
-                points = DYNAMIC_RHYTHM_CONFIG.goodScore;
-                color = POP_COLORS.NEON_YELLOW;
-                text = 'GOOD';
-                
-                this.combo++;
-                points = Math.floor(points * (1 + this.combo * 0.005));
-                
-                this.triggerShake(20, 300);
-                
-                // 少量粒子
-                this.createParticleExplosion(x, y, POP_COLORS.NEON_YELLOW, 20);
-                
-                this.audioManager.playSound('hit', { pitch: 1, volume: 0.8 });
-                
-                break;
-        }
-        
-        this.score += points;
-        this.updateScore(this.score);
-        this.updateCombo(this.combo);
-        
-        if (this.combo > this.maxCombo) {
-            this.maxCombo = this.combo;
-        }
-        
-        if (this.combo > 0 && this.combo % 10 === 0) {
-            this.audioManager.playSound('combo', { pitch: 1 + this.combo * 0.01, volume: 0.7 });
-        }
-        
+    addHitEffect(x, y, color, type = 'normal') {
         this.hitEffects.push({
             x,
             y,
-            radius: 30,
             color,
-            text,
-            life: 800,
-            maxLife: 800,
+            type,
+            radius: 20,
+            maxRadius: type === 'perfect' ? 150 : 100,
+            life: 500,
+            maxLife: 500,
             alpha: 1
         });
     }
     
-    handleMiss() {
-        this.combo = 0;
-        this.updateCombo(this.combo);
+    updateKeyFeedback(deltaTime) {
+        const directions = ['up', 'down', 'left', 'right', 'space'];
+        directions.forEach(dir => {
+            if (this.keyFeedback[dir].pressed) {
+                this.keyFeedback[dir].scale = Math.min(1.5, this.keyFeedback[dir].scale + deltaTime * 0.01);
+            } else {
+                this.keyFeedback[dir].scale = Math.max(1, this.keyFeedback[dir].scale - deltaTime * 0.005);
+            }
+        });
+    }
+    
+    handleInput(eventType, event) {
+        if (this.isGameOver) return;
         
-        this.score += DYNAMIC_RHYTHM_CONFIG.missPenalty;
-        this.score = Math.max(0, this.score);
-        this.updateScore(this.score);
+        const key = event.key;
+        const isKeyDown = eventType === 'keydown';
+        const isKeyUp = eventType === 'keyup';
         
-        this.audioManager.playSound('miss', { volume: 0.5 });
+        if (isKeyDown && this.keysPressed[key]) return;
+        
+        this.keysPressed[key] = isKeyDown;
+        
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(key)) {
+            if (isKeyDown) {
+                this.processKeyPress(key);
+            } else {
+                this.processKeyRelease(key);
+            }
+        }
+    }
+    
+    processKeyPress(key) {
+        if (this.holdingNote) {
+            return;
+        }
+        
+        const direction = this.keyToDirection(key);
+        if (!direction) return;
+        
+        const currentTime = (performance.now() - this.gameStartTime) / 1000;
+        
+        const directionNotes = this.activeNotes.filter(note => 
+            note.isActive && 
+            !note.isHit && 
+            !note.isDisappearing &&
+            note.direction === direction
+        );
+        
+        if (directionNotes.length === 0) return;
+        
+        directionNotes.sort((a, b) => 
+            Math.abs(a.targetTime - currentTime) - Math.abs(b.targetTime - currentTime)
+        );
+        
+        const targetNote = directionNotes[0];
+        
+        if (targetNote.isDouble) {
+            const partnerNote = this.activeNotes.find(note => 
+                note.id !== targetNote.id &&
+                note.isDouble &&
+                note.targetTime === targetNote.targetTime
+            );
+            
+            if (partnerNote && !partnerNote.isHit) {
+                targetNote.isHit = true;
+                return;
+            }
+            
+            if (partnerNote && partnerNote.isHit) {
+                this.handleDoubleHit(targetNote, partnerNote, currentTime);
+                return;
+            }
+        }
+        
+        if (targetNote.isHold) {
+            const checkResult = targetNote.checkHit(currentTime);
+            if (checkResult === 'hold-start') {
+                targetNote.startHold();
+                this.holdingNote = targetNote;
+                this.audioManager.playSound('hit', { pitch: 1.0, volume: 0.6 });
+            }
+            return;
+        }
+        
+        const checkResult = targetNote.checkHit(currentTime);
+        if (checkResult) {
+            this.handleHit(targetNote, checkResult);
+        }
+    }
+    
+    processKeyRelease(key) {
+        if (this.holdingNote) {
+            const direction = this.keyToDirection(key);
+            if (direction === this.holdingNote.direction || key === ' ') {
+                this.holdingNote.endHold();
+                if (this.holdingNote.isHit) {
+                    const holdProgress = this.holdingNote.holdProgress;
+                    if (holdProgress >= 0.9) {
+                        this.handleHit(this.holdingNote, 'perfect');
+                    } else if (holdProgress >= 0.5) {
+                        this.handleHit(this.holdingNote, 'good');
+                    } else {
+                        this.handleMiss(this.holdingNote);
+                    }
+                }
+                this.holdingNote = null;
+            }
+        }
+    }
+    
+    keyToDirection(key) {
+        switch (key) {
+            case 'ArrowUp': return 'up';
+            case 'ArrowDown': return 'down';
+            case 'ArrowLeft': return 'left';
+            case 'ArrowRight': return 'right';
+            case ' ': return 'any';
+            default: return null;
+        }
+    }
+    
+    handleDoubleHit(note1, note2, currentTime) {
+        const timeDiff = Math.abs(currentTime - note1.targetTime);
+        let hitType = 'good';
+        if (timeDiff < 0.1) hitType = 'perfect';
+        
+        note1.hit(hitType);
+        note2.hit(hitType);
+        
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+        
+        this.addHitEffect(centerX, centerY, POP_COLORS.CYAN_BLUE, hitType);
+        this.createParticleExplosion(centerX, centerY, POP_COLORS.CYAN_BLUE, 40);
+        
+        const score = hitType === 'perfect' ? 
+            DYNAMIC_RHYTHM_CONFIG.perfectScore * 1.5 : 
+            DYNAMIC_RHYTHM_CONFIG.goodScore * 1.5;
+        this.updateScore(this.score + Math.floor(score * (1 + this.combo * 0.01)));
+        this.updateCombo(this.combo + 1);
+        this.maxCombo = Math.max(this.maxCombo, this.combo);
+        
+        if (hitType === 'perfect') {
+            this.perfectCount += 2;
+            this.energy = Math.min(DYNAMIC_RHYTHM_CONFIG.maxEnergy, 
+                this.energy + DYNAMIC_RHYTHM_CONFIG.perfectEnergyGain * 1.5);
+            this.audioManager.playSound('perfect', { pitch: 1.3, volume: 0.9 });
+            this.triggerShake(15, 200);
+            this.updateBgColorByCombo();
+        } else {
+            this.goodCount += 2;
+            this.energy = Math.min(DYNAMIC_RHYTHM_CONFIG.maxEnergy, 
+                this.energy + DYNAMIC_RHYTHM_CONFIG.goodEnergyGain * 1.5);
+            this.audioManager.playSound('hit', { pitch: 1.1, volume: 0.7 });
+        }
+    }
+    
+    handleHit(note, type) {
+        note.hit(type);
+        
+        this.addHitEffect(note.currentX, note.currentY, 
+            type === 'perfect' ? DYNAMIC_RHYTHM_CONFIG.colors.perfect : DYNAMIC_RHYTHM_CONFIG.colors.good, 
+            type);
+        this.createParticleExplosion(note.currentX, note.currentY, note.color, type === 'perfect' ? 35 : 20);
+        
+        const score = type === 'perfect' ? DYNAMIC_RHYTHM_CONFIG.perfectScore : DYNAMIC_RHYTHM_CONFIG.goodScore;
+        this.updateScore(this.score + Math.floor(score * (1 + this.combo * 0.01)));
+        this.updateCombo(this.combo + 1);
+        this.maxCombo = Math.max(this.maxCombo, this.combo);
+        
+        if (type === 'perfect') {
+            this.perfectCount++;
+            this.energy = Math.min(DYNAMIC_RHYTHM_CONFIG.maxEnergy, 
+                this.energy + DYNAMIC_RHYTHM_CONFIG.perfectEnergyGain);
+            this.audioManager.playSound('perfect', { pitch: 1.2, volume: 0.8 });
+            this.triggerShake(10, 150);
+            this.triggerFlash('rgba(255, 255, 255, 0.3)', 100);
+            this.updateBgColorByCombo();
+        } else {
+            this.goodCount++;
+            this.energy = Math.min(DYNAMIC_RHYTHM_CONFIG.maxEnergy, 
+                this.energy + DYNAMIC_RHYTHM_CONFIG.goodEnergyGain);
+            this.audioManager.playSound('hit', { pitch: 1.0, volume: 0.6 });
+        }
+        
+        if (this.combo >= 5 && this.combo % 5 === 0) {
+            this.audioManager.playSound('combo', { pitch: 1 + (this.combo / 50), volume: 0.7 });
+        }
+    }
+    
+    handleMiss(note = null) {
+        this.missCount++;
+        this.updateCombo(0);
+        
+        this.energy = Math.max(0, this.energy - DYNAMIC_RHYTHM_CONFIG.missEnergyLoss);
+        
+        this.audioManager.playSound('miss', { pitch: 0.8, volume: 0.6 });
+        this.triggerFlash('rgba(255, 0, 0, 0.2)', 150);
+        
+        if (this.energy <= 0) {
+            this.gameOver();
+        }
+    }
+    
+    updateBgColorByCombo() {
+        const stages = DYNAMIC_RHYTHM_CONFIG.comboColorStages;
+        let targetStage = stages[0];
+        
+        for (let i = stages.length - 1; i >= 0; i--) {
+            if (this.combo >= stages[i].minCombo) {
+                targetStage = stages[i];
+                break;
+            }
+        }
+        
+        this.targetBgColor = targetStage.color;
+        this.isInverted = targetStage.invert || false;
+        
+        this.canvas.style.backgroundColor = this.targetBgColor;
     }
 }
 
-window.DynamicRhythmGame = DynamicRhythmGame;
+console.log('动态律动游戏模块已加载（完整版）');
