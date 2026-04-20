@@ -132,6 +132,8 @@ html, body {
     box-shadow: var(--shadow-pop);
     position: relative;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .game-card::before {
@@ -190,6 +192,7 @@ html, body {
     text-align: center;
     margin-bottom: 25px;
     line-height: 1.5;
+    flex: 1;
 }
 
 .play-btn {
