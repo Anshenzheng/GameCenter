@@ -573,7 +573,7 @@ class DynamicRhythmGame extends GameInterface {
      * 渲染游戏帧
      */
     render(deltaTime) {
-        if (!this.isRunning || !this.ctx) return;
+        if (!this.isRunning || !this.ctx || this.gameStartTime === undefined) return;
         
         const currentTime = (performance.now() - this.gameStartTime) / 1000;
         this.elapsedTime = currentTime;
@@ -588,7 +588,7 @@ class DynamicRhythmGame extends GameInterface {
         this.spawnNotes(currentTime);
         
         // 更新节拍器
-        this.updateMetronome(currentTime);
+        this.updateMetronome(currentTime, deltaTime);
         
         // 更新和渲染音符
         this.updateAndRenderNotes(currentTime);
@@ -626,7 +626,7 @@ class DynamicRhythmGame extends GameInterface {
     /**
      * 更新节拍器
      */
-    updateMetronome(currentTime) {
+    updateMetronome(currentTime, deltaTime) {
         // 脉冲动画
         this.metronomePulse += deltaTime * 0.003 * this.pulseDirection;
         if (this.metronomePulse > 1) {
