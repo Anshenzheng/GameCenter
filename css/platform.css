@@ -1,0 +1,386 @@
+/* ==========================================
+   平台基础样式 - 波普风格
+   特点：大色块、高对比、几何形状、扁平设计
+   ========================================== */
+
+/* CSS变量 - 波普风格配色 */
+:root {
+    /* 主色调 */
+    --pop-pink: #FF6B9D;
+    --pop-yellow: #FFE156;
+    --pop-blue: #4ECDC4;
+    --pop-purple: #A855F7;
+    --pop-orange: #FF8C42;
+    --pop-green: #26D07C;
+    --pop-red: #FF4757;
+    --pop-cyan: #00D9FF;
+    
+    /* 深色和浅色 */
+    --dark-bg: #1A1A2E;
+    --dark-card: #16213E;
+    --light-text: #FFFFFF;
+    --dark-text: #0F0F0F;
+    
+    /* 阴影和边框 */
+    --shadow-pop: 8px 8px 0px rgba(0, 0, 0, 0.3);
+    --shadow-pop-hover: 12px 12px 0px rgba(0, 0, 0, 0.4);
+    --border-pop: 4px solid;
+    
+    /* 动画 */
+    --transition-pop: all 0.2s ease;
+}
+
+/* 重置和基础样式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--dark-bg);
+    color: var(--light-text);
+    overflow: hidden;
+}
+
+#app {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+/* 屏幕切换 */
+.screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.screen.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* ==========================================
+   游戏选择界面样式
+   ========================================== */
+
+#game-selection {
+    padding: 40px;
+    overflow-y: auto;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.title {
+    font-size: 4rem;
+    font-weight: 900;
+    margin-bottom: 10px;
+    background: linear-gradient(
+        45deg,
+        var(--pop-pink),
+        var(--pop-yellow),
+        var(--pop-blue),
+        var(--pop-purple)
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: none;
+    letter-spacing: -2px;
+}
+
+.subtitle {
+    font-size: 1.2rem;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 300;
+}
+
+/* 游戏网格 */
+.games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 30px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* 游戏卡片 */
+.game-card {
+    --primary-color: var(--pop-blue);
+    --secondary-color: var(--pop-pink);
+    
+    background-color: var(--dark-card);
+    border: 4px solid var(--primary-color);
+    border-radius: 0;
+    padding: 30px;
+    cursor: pointer;
+    transition: var(--transition-pop);
+    box-shadow: var(--shadow-pop);
+    position: relative;
+    overflow: hidden;
+}
+
+.game-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+        45deg,
+        transparent,
+        transparent 40%,
+        rgba(255, 255, 255, 0.1) 50%,
+        transparent 60%,
+        transparent
+    );
+    transform: rotate(45deg);
+    transition: all 0.5s ease;
+    opacity: 0;
+}
+
+.game-card:hover {
+    transform: translate(-4px, -4px);
+    box-shadow: var(--shadow-pop-hover);
+    border-color: var(--secondary-color);
+}
+
+.game-card:hover::before {
+    opacity: 1;
+}
+
+.game-card:active {
+    transform: translate(0, 0);
+    box-shadow: none;
+}
+
+.game-icon {
+    font-size: 5rem;
+    text-align: center;
+    margin-bottom: 20px;
+    filter: drop-shadow(4px 4px 0px rgba(0, 0, 0, 0.3));
+}
+
+.game-name {
+    font-size: 1.8rem;
+    font-weight: 800;
+    text-align: center;
+    margin-bottom: 15px;
+    color: var(--light-text);
+}
+
+.game-description {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.7);
+    text-align: center;
+    margin-bottom: 25px;
+    line-height: 1.5;
+}
+
+.play-btn {
+    display: block;
+    width: 100%;
+    padding: 15px 30px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    background-color: var(--primary-color);
+    color: var(--dark-text);
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    transition: var(--transition-pop);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.game-card:hover .play-btn {
+    background-color: var(--secondary-color);
+}
+
+.play-btn:hover {
+    transform: scale(1.05);
+}
+
+/* ==========================================
+   游戏容器样式
+   ========================================== */
+
+#game-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.game-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 30px;
+    background-color: var(--dark-card);
+    border-bottom: 4px solid var(--pop-blue);
+    z-index: 100;
+}
+
+.back-btn {
+    padding: 10px 25px;
+    font-size: 1rem;
+    font-weight: 700;
+    background-color: var(--pop-red);
+    color: var(--light-text);
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    transition: var(--transition-pop);
+    box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.3);
+}
+
+.back-btn:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.4);
+}
+
+.back-btn:active {
+    transform: translate(0, 0);
+    box-shadow: none;
+}
+
+.game-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--light-text);
+}
+
+.game-info {
+    display: flex;
+    gap: 30px;
+}
+
+.score, .combo {
+    font-size: 1.2rem;
+    font-weight: 700;
+    padding: 8px 20px;
+    background-color: var(--dark-bg);
+    border: 3px solid var(--pop-yellow);
+}
+
+.combo {
+    border-color: var(--pop-green);
+}
+
+/* 游戏画布容器 */
+.game-canvas {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--dark-bg);
+}
+
+/* ==========================================
+   动画效果
+   ========================================== */
+
+/* 震动动画 */
+@keyframes shake {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    10% { transform: translate(-10px, -5px) rotate(-1deg); }
+    20% { transform: translate(10px, 5px) rotate(1deg); }
+    30% { transform: translate(-10px, 5px) rotate(-0.5deg); }
+    40% { transform: translate(10px, -5px) rotate(0.5deg); }
+    50% { transform: translate(-5px, 10px) rotate(-0.3deg); }
+    60% { transform: translate(5px, -10px) rotate(0.3deg); }
+    70% { transform: translate(-5px, 5px) rotate(0deg); }
+    80% { transform: translate(5px, -5px) rotate(0deg); }
+    90% { transform: translate(-2px, 2px) rotate(0deg); }
+}
+
+.shake {
+    animation: shake 0.3s ease-in-out;
+}
+
+/* 闪光动画 */
+@keyframes flash {
+    0% { opacity: 0.8; }
+    100% { opacity: 0; }
+}
+
+/* 脉冲动画 */
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.pulse {
+    animation: pulse 0.5s ease-in-out infinite;
+}
+
+/* 背景色过渡动画 */
+.bg-transition {
+    transition: background-color 0.5s ease;
+}
+
+/* ==========================================
+   响应式设计
+   ========================================== */
+
+@media (max-width: 768px) {
+    #game-selection {
+        padding: 20px;
+    }
+    
+    .title {
+        font-size: 2.5rem;
+    }
+    
+    .games-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    
+    .game-card {
+        padding: 20px;
+    }
+    
+    .game-icon {
+        font-size: 4rem;
+    }
+    
+    .game-name {
+        font-size: 1.5rem;
+    }
+    
+    .game-header {
+        padding: 10px 15px;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .game-title {
+        font-size: 1.2rem;
+        order: -1;
+        width: 100%;
+        text-align: center;
+    }
+    
+    .game-info {
+        gap: 10px;
+    }
+    
+    .score, .combo {
+        font-size: 1rem;
+        padding: 5px 15px;
+    }
+}

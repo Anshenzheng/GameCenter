@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>游戏中心 | Game Center</title>
+    <link rel="stylesheet" href="css/platform.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 游戏选择界面 -->
+        <div id="game-selection" class="screen active">
+            <header class="header">
+                <h1 class="title">🎮 游戏中心</h1>
+                <p class="subtitle">选择一个游戏开始冒险</p>
+            </header>
+            
+            <div id="games-container" class="games-grid">
+                <!-- 游戏卡片将由JS动态生成 -->
+            </div>
+        </div>
+        
+        <!-- 游戏容器 -->
+        <div id="game-container" class="screen">
+            <div class="game-header">
+                <button id="back-btn" class="back-btn">← 返回</button>
+                <h2 id="current-game-title" class="game-title"></h2>
+                <div class="game-info">
+                    <span id="score-display" class="score">分数: 0</span>
+                    <span id="combo-display" class="combo">连击: 0</span>
+                </div>
+            </div>
+            <div id="game-canvas" class="game-canvas">
+                <!-- 游戏内容将在这里渲染 -->
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/game-manager.js"></script>
+    <script src="js/game-interface.js"></script>
+    <!-- 游戏模块 -->
+    <script src="games/dynamic-rhythm/dynamic-rhythm.js"></script>
+    
+    <script>
+        // 初始化游戏中心
+        document.addEventListener('DOMContentLoaded', () => {
+            const gameManager = new GameManager();
+            
+            // 注册游戏
+            gameManager.registerGame(DynamicRhythmGame);
+            
+            // 渲染游戏列表
+            gameManager.renderGameList();
+            
+            // 返回按钮事件
+            document.getElementById('back-btn').addEventListener('click', () => {
+                gameManager.exitGame();
+            });
+        });
+    </script>
+</body>
+</html>
