@@ -24,11 +24,11 @@ const SUDOKU_COLORS = {
     CELL_NOTE: '#94a3b8',
     BOX_EVEN: 'rgba(30, 30, 60)',
     BOX_ODD: 'rgba(20, 20, 50)',
-    HIGHLIGHT_ROW_COL: 'rgba(129, 140, 248, 0.06)',
-    HIGHLIGHT_BOX: 'rgba(251, 191, 36, 0.05)',
-    HIGHLIGHT_SELECTED: 'rgba(129, 140, 248, 0.25)',
-    HIGHLIGHT_SAME_NUMBER: 'rgba(74, 222, 128, 0.2)',
-    HIGHLIGHT_CONFLICT: 'rgba(248, 113, 113, 0.3)',
+    HIGHLIGHT_ROW_COL: 'rgba(255, 255, 255, 0.08)',
+    HIGHLIGHT_BOX: 'rgba(255, 255, 255, 0.05)',
+    HIGHLIGHT_SELECTED: 'rgba(129, 140, 248, 0.2)',
+    HIGHLIGHT_SAME_NUMBER: 'rgba(74, 222, 128, 0.15)',
+    HIGHLIGHT_CONFLICT: 'rgba(248, 113, 113, 0.25)',
     BOX_BORDER: '#6366f1',
 };
 
