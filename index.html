@@ -40,6 +40,7 @@
     <script src="js/game-interface.js"></script>
     <!-- 游戏模块 -->
     <script src="games/dynamic-rhythm/dynamic-rhythm.js"></script>
+    <script src="games/sudoku/sudoku.js"></script>
     
     <script>
         // 初始化游戏中心
@@ -48,6 +49,7 @@
             
             // 注册游戏
             gameManager.registerGame(DynamicRhythmGame);
+            gameManager.registerGame(SudokuGame);
             
             // 渲染游戏列表
             gameManager.renderGameList();
