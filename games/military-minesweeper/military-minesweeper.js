@@ -243,26 +243,16 @@ class MilitaryMinesweeperGame extends GameInterface {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             width: 100%;
-            max-width: 900px;
+            max-width: 800px;
             font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
             position: relative;
             z-index: 10;
-            padding: 20px;
-            background: 
-                linear-gradient(
-                    135deg,
-                    rgba(80, 80, 80, 0.6) 0%,
-                    rgba(60, 60, 60, 0.6) 50%,
-                    rgba(70, 70, 70, 0.6) 100%
-                );
-            border: 2px solid rgba(100, 100, 100, 0.5);
-            border-radius: 8px;
-            box-shadow: 
-                0 4px 20px rgba(0, 0, 0, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.05),
-                inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+            padding: 0;
+            background: transparent;
+            border: none;
+            box-shadow: none;
         `;
 
         this.createHeader();
@@ -480,20 +470,24 @@ class MilitaryMinesweeperGame extends GameInterface {
             btn.dataset.difficulty = key;
             btn.innerHTML = `${config.label} ${config.name}`;
             btn.style.cssText = `
-                padding: 6px 14px;
-                font-size: 0.8rem;
+                padding: 8px 16px;
+                font-size: 0.85rem;
                 font-weight: 600;
                 background: ${key === this.currentDifficulty ? 
                     `linear-gradient(135deg, ${MILITARY_COLORS.ACCENT_GREEN}, ${MILITARY_COLORS.CAMO_GREEN_DARK})` : 
-                    `linear-gradient(135deg, ${MILITARY_COLORS.TACTICAL_GRAY}, ${MILITARY_COLORS.TACTICAL_DARK})`};
-                border: 1px solid ${key === this.currentDifficulty ? 
-                    MILITARY_COLORS.ACCENT_GREEN : MILITARY_COLORS.BORDER_METAL};
-                color: ${MILITARY_COLORS.TEXT_PRIMARY};
-                border-radius: 4px;
+                    `linear-gradient(135deg, ${MILITARY_COLORS.CAMO_GREEN_MEDIUM}, ${MILITARY_COLORS.CAMO_BROWN_MEDIUM})`};
+                border: 2px solid ${key === this.currentDifficulty ? 
+                    MILITARY_COLORS.ACCENT_YELLOW : MILITARY_COLORS.CAMO_BROWN_DARK};
+                color: #e8e8e8;
+                text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+                border-radius: 6px;
                 cursor: pointer;
                 transition: all 0.3s ease;
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
+                box-shadow: 
+                    0 2px 6px rgba(0, 0, 0, 0.3),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.15);
             `;
             
             btn.addEventListener('click', () => {
@@ -523,19 +517,39 @@ class MilitaryMinesweeperGame extends GameInterface {
         statusPanel.id = 'military-status-panel';
         statusPanel.style.cssText = `
             display: flex;
-            gap: 15px;
-            padding: 5px 15px;
-            background: rgba(70, 70, 70, 0.5);
-            border: 1px solid ${MILITARY_COLORS.BORDER_METAL};
-            border-radius: 4px;
+            gap: 20px;
+            padding: 8px 18px;
+            background: linear-gradient(
+                135deg,
+                rgba(80, 70, 60, 0.8),
+                rgba(60, 50, 40, 0.8)
+            );
+            border: 2px solid ${MILITARY_COLORS.CAMO_BROWN_DARK};
+            border-radius: 6px;
             margin-top: 3px;
-            font-size: 0.75rem;
-            color: ${MILITARY_COLORS.TEXT_SECONDARY};
+            font-size: 0.8rem;
+            color: #f0e8e0;
+            box-shadow: 
+                0 2px 8px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
         `;
         statusPanel.innerHTML = `
-            <span>🖱️ 左键: 翻开格子</span>
-            <span>🚩 右键: 标记/取消标记</span>
-            <span id="game-status-text">状态: 准备就绪</span>
+            <span style="display: flex; align-items: center; gap: 4px;">
+                <span style="font-size: 1.1rem;">🖱️</span>
+                <span style="font-weight: 600; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);">左键: 翻开格子</span>
+            </span>
+            <span style="display: flex; align-items: center; gap: 4px;">
+                <span style="font-size: 1.1rem;">🚩</span>
+                <span style="font-weight: 600; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);">右键: 标记/取消标记</span>
+            </span>
+            <span id="game-status-text" style="
+                display: flex; 
+                align-items: center; 
+                gap: 4px;
+                font-weight: 700;
+                color: ${MILITARY_COLORS.ACCENT_YELLOW};
+                text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+            ">状态: 准备就绪</span>
         `;
         this.gameContainer.appendChild(statusPanel);
     }
@@ -546,8 +560,8 @@ class MilitaryMinesweeperGame extends GameInterface {
             const isActive = btn.dataset.difficulty === this.currentDifficulty;
             btn.style.background = isActive ? 
                 `linear-gradient(135deg, ${MILITARY_COLORS.ACCENT_GREEN}, ${MILITARY_COLORS.CAMO_GREEN_DARK})` : 
-                `linear-gradient(135deg, ${MILITARY_COLORS.TACTICAL_GRAY}, ${MILITARY_COLORS.TACTICAL_DARK})`;
-            btn.style.borderColor = isActive ? MILITARY_COLORS.ACCENT_GREEN : MILITARY_COLORS.BORDER_METAL;
+                `linear-gradient(135deg, ${MILITARY_COLORS.CAMO_GREEN_MEDIUM}, ${MILITARY_COLORS.CAMO_BROWN_MEDIUM})`;
+            btn.style.borderColor = isActive ? MILITARY_COLORS.ACCENT_YELLOW : MILITARY_COLORS.CAMO_BROWN_DARK;
         });
     }
 
