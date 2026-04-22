@@ -855,7 +855,8 @@ class JungleSnakeGame extends GameInterface {
             const y = (i * this.gameCanvas.height / 4) + Math.cos(time * 0.2 + i * 0.5) * 15;
             
             const vignette = ctx.createRadialGradient(x, y, 0, x, y, 80);
-            vignette.addColorStop(0, `rgba(74, 124, 89, ${0.05 + Math.sin(time + i) * 0.02})');
+            const alpha = 0.05 + Math.sin(time + i) * 0.02;
+            vignette.addColorStop(0, 'rgba(74, 124, 89, ' + alpha + ')');
             vignette.addColorStop(1, 'rgba(0, 0, 0, 0)');
             ctx.fillStyle = vignette;
             ctx.fillRect(x - 80, y - 80, 160, 160);
@@ -895,7 +896,7 @@ class JungleSnakeGame extends GameInterface {
             ctx.save();
             ctx.globalAlpha = 0.15;
             
-            ctx.fillStyle = '#f5deb3;
+            ctx.fillStyle = '#f5deb3';
             ctx.beginPath();
             ctx.roundRect(mushroom.x - mushroom.size * 0.15, mushroom.y, mushroom.size * 0.3, mushroom.size * 0.5, 2);
             ctx.fill();
@@ -927,7 +928,7 @@ class JungleSnakeGame extends GameInterface {
             ctx.save();
             ctx.globalAlpha = glowIntensity;
             
-            const glowSize = firefly.size * (2 + Math.sin(firefly.glowPhase) * 1.5;
+            const glowSize = firefly.size * (2 + Math.sin(firefly.glowPhase) * 1.5);
             const gradient = ctx.createRadialGradient(
                 firefly.x, firefly.y, 0,
                 firefly.x, firefly.y, glowSize
@@ -941,7 +942,7 @@ class JungleSnakeGame extends GameInterface {
             ctx.arc(firefly.x, firefly.y, glowSize, 0, Math.PI * 2);
             ctx.fill();
             
-            ctx.fillStyle = '#fff;
+            ctx.fillStyle = '#fff';
             ctx.beginPath();
             ctx.arc(firefly.x, firefly.y, firefly.size * 0.5, 0, Math.PI * 2);
             ctx.fill();
@@ -1034,7 +1035,7 @@ class JungleSnakeGame extends GameInterface {
                 progress
             );
             
-            const color = `rgb(${r}, ${g}, ${b})';
+            const color = 'rgb(' + r + ', ' + g + ', ' + b + ')';
             
             const drawX = x + padding + offset;
             const drawY = y + padding + offset;
@@ -1045,7 +1046,7 @@ class JungleSnakeGame extends GameInterface {
             ctx.roundRect(drawX, drawY, actualSize, actualSize, radius);
             ctx.fill();
             
-            ctx.fillStyle = `rgba(255, 255, 255, ${isHead ? 0.25 : 0.15})';
+            ctx.fillStyle = 'rgba(255, 255, 255, ' + (isHead ? 0.25 : 0.15) + ')';
             ctx.beginPath();
             ctx.roundRect(drawX + 2, drawY + 2, actualSize / 2, actualSize / 3, actualSize / 6);
             ctx.fill();
@@ -1214,7 +1215,7 @@ class JungleSnakeGame extends GameInterface {
         ctx.fillStyle = gradient;
         ctx.fillRect(-glowRadius, -glowRadius, glowRadius * 2, glowRadius * 2);
         
-        ctx.font = `${size * 0.9}px Arial`;
+        ctx.font = size * 0.9 + 'px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(this.foodType.emoji, 0, 0);
@@ -1396,7 +1397,7 @@ class JungleSnakeGame extends GameInterface {
                 indicator.textContent = '🚀 加速中';
                 indicator.style.color = JUNGLE_COLORS.ACCENT_GOLD;
                 display.style.background = 'rgba(249, 202, 36, 0.25)';
-                display.style.border = `2px solid ${JUNGLE_COLORS.ACCENT_GOLD}`;
+                display.style.border = '2px solid ' + JUNGLE_COLORS.ACCENT_GOLD;
             } else {
                 indicator.textContent = '🐢 正常';
                 indicator.style.color = JUNGLE_COLORS.TEXT_PRIMARY;
