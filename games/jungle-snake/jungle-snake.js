@@ -111,7 +111,8 @@ class JungleSnakeGame extends GameInterface {
         this.highScore = this.loadHighScore();
         
         this.particles = [];
-        this.decorativeFireflies = [];
+        this.fireflyElements = [];
+        this.backgroundFireflies = [];
         this.audioManager = new AudioManager();
     }
 
@@ -162,9 +163,10 @@ class JungleSnakeGame extends GameInterface {
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 15px;
+            padding: 10px;
             overflow: hidden;
-            gap: 20px;
+            gap: 15px;
+            position: relative;
         `;
 
         const style = document.createElement('style');
@@ -185,9 +187,13 @@ class JungleSnakeGame extends GameInterface {
                 from { opacity: 0; transform: scale(0.8); }
                 to { opacity: 1; transform: scale(1); }
             }
-            @keyframes firefly-glow {
+            @keyframes firefly-float {
+                0%, 100% { transform: translateY(0px); }
+                50% { transform: translateY(-10px); }
+            }
+            @keyframes firefly-pulse {
                 0%, 100% { opacity: 0.3; transform: scale(0.8); }
-                50% { opacity: 1; transform: scale(1.2); }
+                50% { opacity: 1; transform: scale(1.3); }
             }
             @keyframes float-up {
                 0%, 100% { transform: translateY(0); }
@@ -201,19 +207,52 @@ class JungleSnakeGame extends GameInterface {
                 0%, 100% { box-shadow: 0 0 20px rgba(109, 191, 122, 0.4); }
                 50% { box-shadow: 0 0 30px rgba(109, 191, 122, 0.7); }
             }
+            .jungle-firefly {
+                position: absolute;
+                pointer-events: none;
+                z-index: 1;
+            }
+            .jungle-firefly-glow {
+                position: absolute;
+                border-radius: 50%;
+                background: radial-gradient(circle, ${JUNGLE_COLORS.FIREFLY}cc 0%, ${JUNGLE_COLORS.FIREFLY}44 50%, transparent 100%);
+                pointer-events: none;
+            }
+            .jungle-firefly-core {
+                position: absolute;
+                border-radius: 50%;
+                background: #ffffff;
+                box-shadow: 0 0 10px ${JUNGLE_COLORS.FIREFLY};
+                pointer-events: none;
+            }
         `;
         document.head.appendChild(style);
+
+        this.backgroundFirefliesContainer = document.createElement('div');
+        this.backgroundFirefliesContainer.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            overflow: hidden;
+        `;
+        this.canvas.appendChild(this.backgroundFirefliesContainer);
 
         this.leftPanel = document.createElement('div');
         this.leftPanel.className = 'left-panel';
         this.leftPanel.style.cssText = `
             display: flex;
             flex-direction: column;
-            gap: 15px;
-            width: 220px;
-            height: 100%;
-            max-height: 650px;
+            gap: 12px;
+            width: 200px;
+            min-width: 200px;
+            flex-shrink: 0;
             font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+            z-index: 2;
+            max-height: 100%;
+            overflow-y: auto;
         `;
 
         this.createHUD();
@@ -227,6 +266,8 @@ class JungleSnakeGame extends GameInterface {
             align-items: center;
             gap: 0;
             font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+            z-index: 2;
+            flex-shrink: 0;
         `;
 
         this.createGameCanvas();
@@ -241,24 +282,25 @@ class JungleSnakeGame extends GameInterface {
         hud.style.cssText = `
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            padding: 20px;
+            gap: 8px;
+            padding: 14px;
             background: linear-gradient(135deg, rgba(26, 58, 37, 0.95), rgba(45, 90, 61, 0.95));
             backdrop-filter: blur(15px);
             border: 2px solid ${JUNGLE_COLORS.MOSS_GREEN};
-            border-radius: 16px;
+            border-radius: 12px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            flex-shrink: 0;
         `;
 
         const title = document.createElement('div');
         title.style.cssText = `
-            font-size: 1.3rem;
+            font-size: 1.1rem;
             font-weight: 800;
             color: ${JUNGLE_COLORS.LIME_GREEN};
             text-align: center;
-            padding-bottom: 12px;
+            padding-bottom: 8px;
             border-bottom: 1px solid ${JUNGLE_COLORS.MOSS_GREEN};
-            margin-bottom: 5px;
+            margin-bottom: 2px;
         `;
         title.innerHTML = '🐍 游戏状态';
         hud.appendChild(title);
@@ -276,17 +318,17 @@ class JungleSnakeGame extends GameInterface {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                padding: 10px 12px;
+                padding: 7px 10px;
                 background: rgba(0, 0, 0, 0.2);
-                border-radius: 10px;
+                border-radius: 8px;
             `;
             
             itemEl.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 1.2rem;">${item.icon}</span>
-                    <span style="font-size: 0.85rem; color: ${JUNGLE_COLORS.TEXT_SECONDARY}; font-weight: 600;">${item.label}</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 1rem;">${item.icon}</span>
+                    <span style="font-size: 0.75rem; color: ${JUNGLE_COLORS.TEXT_SECONDARY}; font-weight: 600;">${item.label}</span>
                 </div>
-                <span id="${item.id}" style="font-size: 1.1rem; font-weight: 800; color: ${item.color};">${item.value}</span>
+                <span id="${item.id}" style="font-size: 0.95rem; font-weight: 800; color: ${item.color};">${item.value}</span>
             `;
             
             hud.appendChild(itemEl);
@@ -301,25 +343,26 @@ class JungleSnakeGame extends GameInterface {
         controls.style.cssText = `
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            padding: 20px;
+            gap: 8px;
+            padding: 14px;
             background: linear-gradient(135deg, rgba(26, 58, 37, 0.95), rgba(45, 90, 61, 0.95));
             backdrop-filter: blur(15px);
             border: 2px solid ${JUNGLE_COLORS.MOSS_GREEN};
-            border-radius: 16px;
+            border-radius: 12px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            flex: 1;
+            flex-shrink: 0;
+            min-height: 0;
         `;
 
         const title = document.createElement('div');
         title.style.cssText = `
-            font-size: 1.3rem;
+            font-size: 1.1rem;
             font-weight: 800;
             color: ${JUNGLE_COLORS.LIME_GREEN};
             text-align: center;
-            padding-bottom: 12px;
+            padding-bottom: 8px;
             border-bottom: 1px solid ${JUNGLE_COLORS.MOSS_GREEN};
-            margin-bottom: 5px;
+            margin-bottom: 2px;
         `;
         title.innerHTML = '🎮 操作说明';
         controls.appendChild(title);
@@ -335,19 +378,19 @@ class JungleSnakeGame extends GameInterface {
             itemEl.style.cssText = `
                 display: flex;
                 flex-direction: column;
-                gap: 6px;
-                padding: 10px 12px;
+                gap: 4px;
+                padding: 8px 10px;
                 background: rgba(0, 0, 0, 0.2);
-                border-radius: 10px;
+                border-radius: 8px;
             `;
             
             const keysDisplay = item.keys.map(k => 
-                `<span style="padding: 4px 10px; background: ${JUNGLE_COLORS.MOSS_GREEN}; border-radius: 6px; font-weight: 700; font-size: 0.8rem; color: ${JUNGLE_COLORS.TEXT_PRIMARY};">${k}</span>`
+                `<span style="padding: 3px 8px; background: ${JUNGLE_COLORS.MOSS_GREEN}; border-radius: 5px; font-weight: 700; font-size: 0.75rem; color: ${JUNGLE_COLORS.TEXT_PRIMARY};">${k}</span>`
             ).join(' ');
             
             itemEl.innerHTML = `
-                <div style="display: flex; gap: 5px; flex-wrap: wrap;">${keysDisplay}</div>
-                <span style="font-size: 0.8rem; color: ${JUNGLE_COLORS.TEXT_SECONDARY};">${item.desc}</span>
+                <div style="display: flex; gap: 4px; flex-wrap: wrap;">${keysDisplay}</div>
+                <span style="font-size: 0.7rem; color: ${JUNGLE_COLORS.TEXT_SECONDARY};">${item.desc}</span>
             `;
             
             controls.appendChild(itemEl);
@@ -355,16 +398,16 @@ class JungleSnakeGame extends GameInterface {
 
         const tip = document.createElement('div');
         tip.style.cssText = `
-            margin-top: 15px;
-            padding: 12px;
+            margin-top: 8px;
+            padding: 8px 10px;
             background: rgba(249, 202, 36, 0.1);
             border: 1px solid rgba(249, 202, 36, 0.3);
-            border-radius: 10px;
-            font-size: 0.75rem;
+            border-radius: 8px;
+            font-size: 0.68rem;
             color: ${JUNGLE_COLORS.TEXT_SECONDARY};
-            line-height: 1.5;
+            line-height: 1.4;
         `;
-        tip.innerHTML = '💡 <strong>小提示：</strong><br>按住空格键加速时吃到食物可以获得双倍分数！';
+        tip.innerHTML = '💡 <strong>小提示：</strong>按住空格键加速时吃到食物可以获得双倍分数！';
         controls.appendChild(tip);
 
         this.leftPanel.appendChild(controls);
@@ -411,16 +454,59 @@ class JungleSnakeGame extends GameInterface {
     }
 
     generateDecorativeElements() {
-        this.decorativeFireflies = [];
-        for (let i = 0; i < 20; i++) {
-            this.decorativeFireflies.push({
+        this.backgroundFireflies = [];
+        this.fireflyElements = [];
+        
+        if (!this.backgroundFirefliesContainer) return;
+        
+        this.backgroundFirefliesContainer.innerHTML = '';
+        
+        for (let i = 0; i < 25; i++) {
+            const firefly = {
                 x: Math.random() * this.canvas.clientWidth,
                 y: Math.random() * this.canvas.clientHeight,
-                size: 3 + Math.random() * 5,
-                vx: (Math.random() - 0.5) * 0.6,
-                vy: (Math.random() - 0.5) * 0.6,
-                glowPhase: Math.random() * Math.PI * 2
-            });
+                size: 4 + Math.random() * 6,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: (Math.random() - 0.5) * 0.5,
+                glowPhase: Math.random() * Math.PI * 2,
+                glowSpeed: 0.02 + Math.random() * 0.03
+            };
+            
+            this.backgroundFireflies.push(firefly);
+            
+            const fireflyEl = document.createElement('div');
+            fireflyEl.className = 'jungle-firefly';
+            fireflyEl.style.cssText = `
+                left: ${firefly.x}px;
+                top: ${firefly.y}px;
+                width: ${firefly.size * 4}px;
+                height: ${firefly.size * 4}px;
+            `;
+            
+            const glowEl = document.createElement('div');
+            glowEl.className = 'jungle-firefly-glow';
+            glowEl.style.cssText = `
+                width: ${firefly.size * 4}px;
+                height: ${firefly.size * 4}px;
+                left: 0;
+                top: 0;
+                animation: firefly-pulse ${2 + Math.random() * 2}s ease-in-out infinite;
+                animation-delay: ${Math.random() * 2}s;
+            `;
+            
+            const coreEl = document.createElement('div');
+            coreEl.className = 'jungle-firefly-core';
+            coreEl.style.cssText = `
+                width: ${firefly.size}px;
+                height: ${firefly.size}px;
+                left: ${firefly.size * 1.5}px;
+                top: ${firefly.size * 1.5}px;
+            `;
+            
+            fireflyEl.appendChild(glowEl);
+            fireflyEl.appendChild(coreEl);
+            this.backgroundFirefliesContainer.appendChild(fireflyEl);
+            this.fireflyElements.push(fireflyEl);
         }
     }
 
@@ -512,6 +598,8 @@ class JungleSnakeGame extends GameInterface {
         if (this.animationFrameId) {
             cancelAnimationFrame(this.animationFrameId);
         }
+        this.fireflyElements = [];
+        this.backgroundFireflies = [];
     }
 
     gameLoop() {
@@ -534,25 +622,36 @@ class JungleSnakeGame extends GameInterface {
     }
 
     updateDecorativeFireflies() {
-        this.decorativeFireflies.forEach(firefly => {
+        this.backgroundFireflies.forEach((firefly, index) => {
             firefly.x += firefly.vx;
             firefly.y += firefly.vy;
-            firefly.glowPhase += 0.03;
+            firefly.glowPhase += firefly.glowSpeed;
             
             if (firefly.x < 0 || firefly.x > this.canvas.clientWidth) {
                 firefly.vx *= -1;
+                firefly.x = Math.max(0, Math.min(this.canvas.clientWidth, firefly.x));
             }
             if (firefly.y < 0 || firefly.y > this.canvas.clientHeight) {
                 firefly.vy *= -1;
+                firefly.y = Math.max(0, Math.min(this.canvas.clientHeight, firefly.y));
             }
             
-            if (Math.random() < 0.005) {
-                firefly.vx += (Math.random() - 0.5) * 0.15;
-                firefly.vy += (Math.random() - 0.5) * 0.15;
+            if (Math.random() < 0.003) {
+                firefly.vx += (Math.random() - 0.5) * 0.12;
+                firefly.vy += (Math.random() - 0.5) * 0.12;
                 
-                const maxSpeed = 1.2;
+                const maxSpeed = 1.0;
                 firefly.vx = Math.max(-maxSpeed, Math.min(maxSpeed, firefly.vx));
                 firefly.vy = Math.max(-maxSpeed, Math.min(maxSpeed, firefly.vy));
+            }
+            
+            if (this.fireflyElements[index]) {
+                const el = this.fireflyElements[index];
+                el.style.left = firefly.x - firefly.size * 2 + 'px';
+                el.style.top = firefly.y - firefly.size * 2 + 'px';
+                
+                const opacity = 0.25 + Math.sin(firefly.glowPhase) * 0.75;
+                el.style.opacity = opacity;
             }
         });
     }
