@@ -163,7 +163,7 @@ class MilitaryMinesweeperGame extends GameInterface {
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 10px;
+            padding: 15px;
             overflow: hidden;
             position: relative;
         `;
@@ -266,23 +266,26 @@ class MilitaryMinesweeperGame extends GameInterface {
     createHeader() {
         const header = document.createElement('div');
         header.className = 'military-header';
+        header.id = 'military-header';
         header.style.cssText = `
             display: flex;
             justify-content: space-between;
             align-items: center;
-            width: 100%;
-            max-width: 500px;
-            padding: 8px 15px;
+            width: fit-content;
+            min-width: 320px;
+            padding: 10px 20px;
             background: linear-gradient(
                 135deg,
                 rgba(90, 90, 90, 0.85),
                 rgba(70, 70, 70, 0.8)
             );
-            border: 1px solid ${MILITARY_COLORS.BORDER_METAL};
-            border-radius: 6px;
+            border: 2px solid ${MILITARY_COLORS.BORDER_METAL};
+            border-radius: 8px;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            box-shadow: 
+                0 6px 16px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
         `;
 
         const mineCounter = document.createElement('div');
@@ -621,14 +624,28 @@ class MilitaryMinesweeperGame extends GameInterface {
         }
     }
 
+    getMaxCellSizeForDifficulty() {
+        if (this.currentDifficulty === 'recruit') {
+            return 45;
+        } else if (this.currentDifficulty === 'sergeant') {
+            return 35;
+        } else {
+            return 28;
+        }
+    }
+
     renderBoard() {
         this.boardElement.innerHTML = '';
         this.cells = [];
         
+        const maxCellSize = this.getMaxCellSizeForDifficulty();
+        const horizontalPadding = this.currentDifficulty === 'recruit' ? 120 : 60;
+        const verticalPadding = this.currentDifficulty === 'recruit' ? 180 : 200;
+        
         const cellSize = Math.min(
-            Math.floor((this.canvas.offsetWidth - 60) / this.cols),
-            Math.floor((this.canvas.offsetHeight - 200) / this.rows),
-            28
+            Math.floor((this.canvas.offsetWidth - horizontalPadding) / this.cols),
+            Math.floor((this.canvas.offsetHeight - verticalPadding) / this.rows),
+            maxCellSize
         );
 
         this.boardElement.style.gridTemplateColumns = `repeat(${this.cols}, ${cellSize}px)`;
