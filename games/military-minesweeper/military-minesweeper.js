@@ -5,22 +5,30 @@
  */
 
 const MILITARY_COLORS = {
-    CAMO_DARK: '#2d3a2a',
-    CAMO_MEDIUM: '#4a5d47',
-    CAMO_LIGHT: '#6b7d68',
-    CAMO_BROWN: '#5c4a3a',
-    CAMO_GREEN: '#3d5c3d',
+    CAMO_GREEN_DARK: '#2d4a2d',
+    CAMO_GREEN_MEDIUM: '#4a6b4a',
+    CAMO_GREEN_LIGHT: '#6b8b6b',
+    CAMO_BROWN_DARK: '#5c4a3a',
+    CAMO_BROWN_MEDIUM: '#7c6a5a',
+    CAMO_BROWN_LIGHT: '#9c8a7a',
+    CAMO_TAN: '#a09080',
+    CAMO_SAND: '#c4b4a4',
+    CAMO_OLIVE: '#5a6b4a',
     TACTICAL_BLACK: '#1a1a1a',
     TACTICAL_DARK: '#2a2a2a',
-    TACTICAL_GRAY: '#3a3a3a',
+    TACTICAL_GRAY: '#5a5a5a',
+    TACTICAL_LIGHT_GRAY: '#8a8a8a',
     ACCENT_RED: '#c41e3a',
     ACCENT_YELLOW: '#d4a017',
     ACCENT_GREEN: '#4a9c2d',
     ACCENT_BLUE: '#1e5f8f',
-    TEXT_PRIMARY: '#e8e8e8',
-    TEXT_SECONDARY: '#a0a0a0',
-    GRID_LINE: 'rgba(139, 119, 101, 0.3)',
-    BORDER_METAL: '#4a4a4a',
+    TEXT_PRIMARY: '#2a2a2a',
+    TEXT_SECONDARY: '#5a5a5a',
+    GRID_LINE: 'rgba(90, 74, 58, 0.4)',
+    BORDER_METAL: '#6a6a6a',
+    REVEALED_LIGHT: '#e8e0d8',
+    REVEALED_MEDIUM: '#d8d0c8',
+    BACKGROUND_LIGHT: '#f5f0eb',
 };
 
 const MILITARY_DIFFICULTY = {
@@ -38,7 +46,7 @@ class MilitaryMinesweeperGame extends GameInterface {
             icon: '💣',
             colors: {
                 primary: MILITARY_COLORS.ACCENT_RED,
-                secondary: MILITARY_COLORS.CAMO_GREEN
+                secondary: MILITARY_COLORS.CAMO_GREEN_DARK
             }
         };
     }
@@ -98,7 +106,28 @@ class MilitaryMinesweeperGame extends GameInterface {
     createGameUI() {
         this.canvas.innerHTML = '';
         this.canvas.style.cssText = `
-            background: linear-gradient(135deg, ${MILITARY_COLORS.TACTICAL_BLACK} 0%, ${MILITARY_COLORS.CAMO_DARK} 50%, ${MILITARY_COLORS.TACTICAL_DARK} 100%);
+            background: 
+                repeating-linear-gradient(
+                    45deg,
+                    transparent,
+                    transparent 10px,
+                    rgba(180, 170, 155, 0.3) 10px,
+                    rgba(180, 170, 155, 0.3) 20px
+                ),
+                repeating-linear-gradient(
+                    -45deg,
+                    transparent,
+                    transparent 10px,
+                    rgba(170, 160, 145, 0.2) 10px,
+                    rgba(170, 160, 145, 0.2) 20px
+                ),
+                linear-gradient(
+                    180deg,
+                    ${MILITARY_COLORS.BACKGROUND_LIGHT} 0%,
+                    #e8e0d8 30%,
+                    #ddd5c8 60%,
+                    ${MILITARY_COLORS.CAMO_SAND} 100%
+                );
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -166,17 +195,13 @@ class MilitaryMinesweeperGame extends GameInterface {
                 50% { transform: scale(1.2); }
                 100% { transform: scale(1); opacity: 1; }
             }
-            @keyframes military-radar-sweep {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-            @keyframes military-status-blink {
-                0%, 100% { opacity: 1; }
-                50% { opacity: 0.3; }
-            }
             @keyframes military-victory-glow {
                 0%, 100% { box-shadow: 0 0 20px rgba(74, 156, 45, 0.5); }
                 50% { box-shadow: 0 0 40px rgba(74, 156, 45, 0.8), 0 0 60px rgba(74, 156, 45, 0.4); }
+            }
+            @keyframes camo-pattern-shift {
+                0%, 100% { background-position: 0 0; }
+                50% { background-position: 5px 5px; }
             }
         `;
         document.head.appendChild(style);
@@ -187,7 +212,7 @@ class MilitaryMinesweeperGame extends GameInterface {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
             width: 100%;
             max-width: 900px;
             font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
@@ -211,18 +236,18 @@ class MilitaryMinesweeperGame extends GameInterface {
             justify-content: space-between;
             align-items: center;
             width: 100%;
-            max-width: 600px;
-            padding: 15px 25px;
-            background: linear-gradient(135deg, rgba(42, 42, 42, 0.95), rgba(58, 58, 58, 0.9));
-            border: 2px solid ${MILITARY_COLORS.BORDER_METAL};
-            border-radius: 8px;
+            max-width: 500px;
+            padding: 8px 15px;
+            background: linear-gradient(
+                135deg,
+                rgba(90, 90, 90, 0.85),
+                rgba(70, 70, 70, 0.8)
+            );
+            border: 1px solid ${MILITARY_COLORS.BORDER_METAL};
+            border-radius: 6px;
             position: relative;
             overflow: hidden;
-        `;
-
-        header.innerHTML = `
-            <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, ${MILITARY_COLORS.ACCENT_GREEN}, ${MILITARY_COLORS.ACCENT_YELLOW}, ${MILITARY_COLORS.ACCENT_RED});"></div>
-            <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, ${MILITARY_COLORS.ACCENT_RED}, ${MILITARY_COLORS.ACCENT_YELLOW}, ${MILITARY_COLORS.ACCENT_GREEN});"></div>
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         `;
 
         const mineCounter = document.createElement('div');
@@ -231,15 +256,15 @@ class MilitaryMinesweeperGame extends GameInterface {
         mineCounter.style.cssText = `
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 10px 15px;
-            background: ${MILITARY_COLORS.TACTICAL_BLACK};
-            border: 2px solid ${MILITARY_COLORS.ACCENT_RED};
-            border-radius: 6px;
+            gap: 5px;
+            padding: 5px 10px;
+            background: rgba(26, 26, 26, 0.6);
+            border: 1px solid ${MILITARY_COLORS.ACCENT_RED};
+            border-radius: 4px;
         `;
         mineCounter.innerHTML = `
-            <span style="font-size: 1.5rem;">💣</span>
-            <span id="mine-count" style="font-size: 1.8rem; font-weight: 800; color: ${MILITARY_COLORS.ACCENT_RED}; font-family: 'Courier New', monospace; font-variant-numeric: tabular-nums;">010</span>
+            <span style="font-size: 1.1rem;">💣</span>
+            <span id="mine-count" style="font-size: 1.3rem; font-weight: 700; color: ${MILITARY_COLORS.ACCENT_RED}; font-family: 'Courier New', monospace; font-variant-numeric: tabular-nums;">010</span>
         `;
 
         const timerDisplay = document.createElement('div');
@@ -248,15 +273,15 @@ class MilitaryMinesweeperGame extends GameInterface {
         timerDisplay.style.cssText = `
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 10px 15px;
-            background: ${MILITARY_COLORS.TACTICAL_BLACK};
-            border: 2px solid ${MILITARY_COLORS.ACCENT_GREEN};
-            border-radius: 6px;
+            gap: 5px;
+            padding: 5px 10px;
+            background: rgba(26, 26, 26, 0.6);
+            border: 1px solid ${MILITARY_COLORS.ACCENT_GREEN};
+            border-radius: 4px;
         `;
         timerDisplay.innerHTML = `
-            <span style="font-size: 1.5rem;">⏱️</span>
-            <span id="timer-value" style="font-size: 1.8rem; font-weight: 800; color: ${MILITARY_COLORS.ACCENT_GREEN}; font-family: 'Courier New', monospace; font-variant-numeric: tabular-nums;">000</span>
+            <span style="font-size: 1.1rem;">⏱️</span>
+            <span id="timer-value" style="font-size: 1.3rem; font-weight: 700; color: ${MILITARY_COLORS.ACCENT_GREEN}; font-family: 'Courier New', monospace; font-variant-numeric: tabular-nums;">00:00</span>
         `;
 
         const resetBtn = document.createElement('button');
@@ -264,11 +289,11 @@ class MilitaryMinesweeperGame extends GameInterface {
         resetBtn.className = 'reset-btn';
         resetBtn.innerHTML = '🎯';
         resetBtn.style.cssText = `
-            width: 50px;
-            height: 50px;
-            font-size: 1.8rem;
-            background: linear-gradient(135deg, ${MILITARY_COLORS.CAMO_MEDIUM}, ${MILITARY_COLORS.CAMO_DARK});
-            border: 3px solid ${MILITARY_COLORS.BORDER_METAL};
+            width: 36px;
+            height: 36px;
+            font-size: 1.3rem;
+            background: linear-gradient(135deg, ${MILITARY_COLORS.CAMO_GREEN_MEDIUM}, ${MILITARY_COLORS.CAMO_GREEN_DARK});
+            border: 2px solid ${MILITARY_COLORS.BORDER_METAL};
             border-radius: 50%;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -281,7 +306,7 @@ class MilitaryMinesweeperGame extends GameInterface {
         });
         resetBtn.addEventListener('mouseenter', () => {
             resetBtn.style.transform = 'scale(1.1)';
-            resetBtn.style.boxShadow = `0 0 15px ${MILITARY_COLORS.ACCENT_YELLOW}`;
+            resetBtn.style.boxShadow = `0 0 10px ${MILITARY_COLORS.ACCENT_YELLOW}`;
         });
         resetBtn.addEventListener('mouseleave', () => {
             resetBtn.style.transform = 'scale(1)';
@@ -294,17 +319,87 @@ class MilitaryMinesweeperGame extends GameInterface {
         this.gameContainer.appendChild(header);
     }
 
+    getCamoPatternForCell(row, col) {
+        const patternIndex = (row * 7 + col * 11) % 6;
+        const patterns = [
+            { bg: MILITARY_COLORS.CAMO_GREEN_DARK, pattern: 'dots' },
+            { bg: MILITARY_COLORS.CAMO_BROWN_DARK, pattern: 'lines' },
+            { bg: MILITARY_COLORS.CAMO_GREEN_MEDIUM, pattern: 'grid' },
+            { bg: MILITARY_COLORS.CAMO_OLIVE, pattern: 'dots' },
+            { bg: MILITARY_COLORS.CAMO_TAN, pattern: 'lines' },
+            { bg: MILITARY_COLORS.CAMO_BROWN_MEDIUM, pattern: 'grid' }
+        ];
+        return patterns[patternIndex];
+    }
+
+    getMapTextureCSS(baseColor, isRevealed = false) {
+        if (isRevealed) {
+            return `
+                background: ${baseColor};
+            `;
+        }
+        
+        const texturePatterns = [
+            `radial-gradient(circle at 30% 40%, rgba(0,0,0,0.08) 1px, transparent 1px),
+             radial-gradient(circle at 70% 60%, rgba(0,0,0,0.06) 1px, transparent 1px),
+             radial-gradient(circle at 50% 50%, rgba(255,255,255,0.03) 2px, transparent 2px),
+             linear-gradient(135deg, ${baseColor} 0%, ${this.adjustColor(baseColor, -5)} 50%, ${baseColor} 100%)`,
+            
+            `repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 3px,
+                rgba(0,0,0,0.04) 3px,
+                rgba(0,0,0,0.04) 4px
+             ),
+             repeating-linear-gradient(
+                90deg,
+                transparent,
+                transparent 3px,
+                rgba(0,0,0,0.03) 3px,
+                rgba(0,0,0,0.03) 4px
+             ),
+             linear-gradient(135deg, ${baseColor} 0%, ${this.adjustColor(baseColor, -3)} 100%)`,
+            
+            `linear-gradient(
+                45deg,
+                transparent 25%,
+                rgba(0,0,0,0.02) 25%,
+                rgba(0,0,0,0.02) 50%,
+                transparent 50%,
+                transparent 75%,
+                rgba(0,0,0,0.02) 75%
+             ),
+             linear-gradient(135deg, ${baseColor} 0%, ${this.adjustColor(baseColor, -8)} 100%)`
+        ];
+        
+        const patternIndex = Math.floor(Math.random() * texturePatterns.length);
+        return `background: ${texturePatterns[patternIndex]};`;
+    }
+
+    adjustColor(color, amount) {
+        const hex = color.replace('#', '');
+        const r = Math.max(0, Math.min(255, parseInt(hex.substr(0, 2), 16) + amount));
+        const g = Math.max(0, Math.min(255, parseInt(hex.substr(2, 2), 16) + amount));
+        const b = Math.max(0, Math.min(255, parseInt(hex.substr(4, 2), 16) + amount));
+        return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    }
+
     createBoard() {
         const boardContainer = document.createElement('div');
         boardContainer.className = 'military-board-container';
         boardContainer.id = 'military-board-container';
         boardContainer.style.cssText = `
             position: relative;
-            padding: 8px;
-            background: linear-gradient(135deg, ${MILITARY_COLORS.CAMO_BROWN}, ${MILITARY_COLORS.CAMO_DARK});
-            border: 3px solid ${MILITARY_COLORS.BORDER_METAL};
-            border-radius: 8px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 2px 10px rgba(0, 0, 0, 0.3);
+            padding: 6px;
+            background: linear-gradient(
+                135deg,
+                ${MILITARY_COLORS.CAMO_BROWN_DARK},
+                ${MILITARY_COLORS.CAMO_GREEN_DARK}
+            );
+            border: 2px solid ${MILITARY_COLORS.BORDER_METAL};
+            border-radius: 6px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3), inset 0 2px 8px rgba(0, 0, 0, 0.2);
         `;
 
         this.boardElement = document.createElement('div');
@@ -328,8 +423,8 @@ class MilitaryMinesweeperGame extends GameInterface {
         selector.className = 'difficulty-selector-military';
         selector.style.cssText = `
             display: flex;
-            gap: 10px;
-            margin-top: 5px;
+            gap: 8px;
+            margin-top: 3px;
             flex-wrap: wrap;
             justify-content: center;
         `;
@@ -340,20 +435,20 @@ class MilitaryMinesweeperGame extends GameInterface {
             btn.dataset.difficulty = key;
             btn.innerHTML = `${config.label} ${config.name}`;
             btn.style.cssText = `
-                padding: 10px 20px;
-                font-size: 0.9rem;
+                padding: 6px 14px;
+                font-size: 0.8rem;
                 font-weight: 600;
                 background: ${key === this.currentDifficulty ? 
-                    `linear-gradient(135deg, ${MILITARY_COLORS.ACCENT_GREEN}, ${MILITARY_COLORS.CAMO_GREEN})` : 
+                    `linear-gradient(135deg, ${MILITARY_COLORS.ACCENT_GREEN}, ${MILITARY_COLORS.CAMO_GREEN_DARK})` : 
                     `linear-gradient(135deg, ${MILITARY_COLORS.TACTICAL_GRAY}, ${MILITARY_COLORS.TACTICAL_DARK})`};
-                border: 2px solid ${key === this.currentDifficulty ? 
+                border: 1px solid ${key === this.currentDifficulty ? 
                     MILITARY_COLORS.ACCENT_GREEN : MILITARY_COLORS.BORDER_METAL};
                 color: ${MILITARY_COLORS.TEXT_PRIMARY};
-                border-radius: 6px;
+                border-radius: 4px;
                 cursor: pointer;
                 transition: all 0.3s ease;
                 text-transform: uppercase;
-                letter-spacing: 1px;
+                letter-spacing: 0.5px;
             `;
             
             btn.addEventListener('click', () => {
@@ -363,8 +458,8 @@ class MilitaryMinesweeperGame extends GameInterface {
             });
 
             btn.addEventListener('mouseenter', () => {
-                btn.style.transform = 'translateY(-2px)';
-                btn.style.boxShadow = `0 5px 15px rgba(0, 0, 0, 0.3)`;
+                btn.style.transform = 'translateY(-1px)';
+                btn.style.boxShadow = `0 3px 10px rgba(0, 0, 0, 0.2)`;
             });
             btn.addEventListener('mouseleave', () => {
                 btn.style.transform = 'translateY(0)';
@@ -383,13 +478,13 @@ class MilitaryMinesweeperGame extends GameInterface {
         statusPanel.id = 'military-status-panel';
         statusPanel.style.cssText = `
             display: flex;
-            gap: 20px;
-            padding: 10px 20px;
-            background: rgba(42, 42, 42, 0.8);
+            gap: 15px;
+            padding: 5px 15px;
+            background: rgba(70, 70, 70, 0.5);
             border: 1px solid ${MILITARY_COLORS.BORDER_METAL};
-            border-radius: 6px;
-            margin-top: 5px;
-            font-size: 0.85rem;
+            border-radius: 4px;
+            margin-top: 3px;
+            font-size: 0.75rem;
             color: ${MILITARY_COLORS.TEXT_SECONDARY};
         `;
         statusPanel.innerHTML = `
@@ -405,7 +500,7 @@ class MilitaryMinesweeperGame extends GameInterface {
         buttons.forEach(btn => {
             const isActive = btn.dataset.difficulty === this.currentDifficulty;
             btn.style.background = isActive ? 
-                `linear-gradient(135deg, ${MILITARY_COLORS.ACCENT_GREEN}, ${MILITARY_COLORS.CAMO_GREEN})` : 
+                `linear-gradient(135deg, ${MILITARY_COLORS.ACCENT_GREEN}, ${MILITARY_COLORS.CAMO_GREEN_DARK})` : 
                 `linear-gradient(135deg, ${MILITARY_COLORS.TACTICAL_GRAY}, ${MILITARY_COLORS.TACTICAL_DARK})`;
             btn.style.borderColor = isActive ? MILITARY_COLORS.ACCENT_GREEN : MILITARY_COLORS.BORDER_METAL;
         });
@@ -441,7 +536,8 @@ class MilitaryMinesweeperGame extends GameInterface {
                 isRevealed: false,
                 isFlagged: false,
                 isQuestioned: false,
-                adjacentMines: 0
+                adjacentMines: 0,
+                camoPattern: null
             }))
         );
 
@@ -472,8 +568,8 @@ class MilitaryMinesweeperGame extends GameInterface {
         
         const cellSize = Math.min(
             Math.floor((this.canvas.offsetWidth - 60) / this.cols),
-            Math.floor((this.canvas.offsetHeight - 250) / this.rows),
-            30
+            Math.floor((this.canvas.offsetHeight - 200) / this.rows),
+            28
         );
 
         this.boardElement.style.gridTemplateColumns = `repeat(${this.cols}, ${cellSize}px)`;
@@ -486,10 +582,10 @@ class MilitaryMinesweeperGame extends GameInterface {
                 cell.dataset.row = row;
                 cell.dataset.col = col;
                 
-                const isEvenRow = row % 2 === 0;
-                const isEvenCol = col % 2 === 0;
-                const camoPattern = (isEvenRow && isEvenCol) || (!isEvenRow && !isEvenCol) ? 
-                    MILITARY_COLORS.CAMO_MEDIUM : MILITARY_COLORS.CAMO_DARK;
+                const camoPattern = this.getCamoPatternForCell(row, col);
+                this.board[row][col].camoPattern = camoPattern;
+                
+                const mapTextureCSS = this.getMapTextureCSS(camoPattern.bg, false);
                 
                 cell.style.cssText = `
                     width: ${cellSize}px;
@@ -497,27 +593,60 @@ class MilitaryMinesweeperGame extends GameInterface {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    background: linear-gradient(135deg, ${camoPattern}, ${MILITARY_COLORS.CAMO_DARK});
+                    ${mapTextureCSS}
                     cursor: pointer;
                     position: relative;
                     transition: all 0.1s ease;
                     user-select: none;
                     font-weight: 700;
-                    font-size: ${Math.max(cellSize * 0.5, 12)}px;
+                    font-size: ${Math.max(cellSize * 0.45, 10)}px;
                     border: 1px solid ${MILITARY_COLORS.GRID_LINE};
-                    box-shadow: inset 1px 1px 2px rgba(255, 255, 255, 0.1), inset -1px -1px 2px rgba(0, 0, 0, 0.2);
+                    box-shadow: 
+                        inset 1px 1px 3px rgba(255, 255, 255, 0.15),
+                        inset -1px -1px 3px rgba(0, 0, 0, 0.2),
+                        0 1px 2px rgba(0, 0, 0, 0.1);
                 `;
+
+                const highlightEl = document.createElement('div');
+                highlightEl.style.cssText = `
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 50%;
+                    background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%);
+                    pointer-events: none;
+                `;
+                cell.appendChild(highlightEl);
 
                 cell.addEventListener('mousedown', (e) => {
                     if (this.isGameOver || this.isWin) return;
                     if (e.button === 0) {
                         this.updateResetButton('😮');
+                        cell.style.transform = 'scale(0.95)';
+                        cell.style.boxShadow = 'inset 0 2px 5px rgba(0,0,0,0.3)';
                     }
                 });
 
                 cell.addEventListener('mouseup', (e) => {
                     if (this.isGameOver || this.isWin) return;
                     this.updateResetButton('🎯');
+                    cell.style.transform = 'scale(1)';
+                    cell.style.boxShadow = `
+                        inset 1px 1px 3px rgba(255, 255, 255, 0.15),
+                        inset -1px -1px 3px rgba(0, 0, 0, 0.2),
+                        0 1px 2px rgba(0, 0, 0, 0.1)
+                    `;
+                });
+
+                cell.addEventListener('mouseleave', () => {
+                    if (this.isGameOver || this.isWin) return;
+                    cell.style.transform = 'scale(1)';
+                    cell.style.boxShadow = `
+                        inset 1px 1px 3px rgba(255, 255, 255, 0.15),
+                        inset -1px -1px 3px rgba(0, 0, 0, 0.2),
+                        0 1px 2px rgba(0, 0, 0, 0.1)
+                    `;
                 });
 
                 cell.addEventListener('click', (e) => {
@@ -640,7 +769,7 @@ class MilitaryMinesweeperGame extends GameInterface {
                     const nc = col + dc;
                     if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
                         if (!this.board[nr][nc].isRevealed) {
-                            setTimeout(() => this.revealCell(nr, nc), 30);
+                            setTimeout(() => this.revealCell(nr, nc), 25);
                         }
                     }
                 }
@@ -660,79 +789,117 @@ class MilitaryMinesweeperGame extends GameInterface {
             bottom: 0;
             background: linear-gradient(180deg, 
                 transparent,
-                rgba(74, 156, 45, 0.6),
-                rgba(212, 160, 23, 0.4),
+                rgba(74, 156, 45, 0.5),
+                rgba(212, 160, 23, 0.3),
                 transparent
             );
             pointer-events: none;
-            animation: military-scan 0.4s ease-out forwards;
+            animation: military-scan 0.35s ease-out forwards;
+            z-index: 5;
         `;
         
         cellElement.appendChild(scanOverlay);
-        setTimeout(() => scanOverlay.remove(), 400);
+        setTimeout(() => scanOverlay.remove(), 350);
         
-        this.audioManager.playSound('hit', { pitch: 0.8 + Math.random() * 0.3, volume: 0.2, type: 'sine' });
+        this.audioManager.playSound('hit', { pitch: 0.8 + Math.random() * 0.3, volume: 0.15, type: 'sine' });
     }
 
     updateCellDisplay(row, col) {
         const cellData = this.board[row][col];
         const cellElement = this.cells[row][col].element;
         
+        const highlightEl = cellElement.querySelector('div');
+        
         cellElement.innerHTML = '';
+        if (highlightEl) {
+            cellElement.appendChild(highlightEl);
+        }
         
         if (cellData.isRevealed) {
             const isEvenRow = row % 2 === 0;
             const isEvenCol = col % 2 === 0;
             const baseColor = (isEvenRow && isEvenCol) || (!isEvenRow && !isEvenCol) ? 
-                MILITARY_COLORS.CAMO_LIGHT : MILITARY_COLORS.CAMO_MEDIUM;
+                MILITARY_COLORS.REVEALED_LIGHT : MILITARY_COLORS.REVEALED_MEDIUM;
             
-            cellElement.style.background = `linear-gradient(135deg, ${baseColor}, ${MILITARY_COLORS.TACTICAL_GRAY})`;
-            cellElement.style.boxShadow = 'inset 2px 2px 5px rgba(0, 0, 0, 0.2)';
+            cellElement.style.background = baseColor;
+            cellElement.style.boxShadow = 'inset 1px 1px 3px rgba(0, 0, 0, 0.1)';
             cellElement.style.animation = 'military-cell-reveal 0.2s ease';
+            
+            if (highlightEl) {
+                highlightEl.style.opacity = '0.3';
+            }
             
             if (cellData.isMine) {
                 const mineIcon = document.createElement('span');
                 mineIcon.innerHTML = '💣';
                 mineIcon.style.cssText = `
-                    font-size: ${Math.max(cellElement.offsetWidth * 0.7, 16)}px;
+                    font-size: ${Math.max(cellElement.offsetWidth * 0.65, 14)}px;
                     animation: military-number-pop 0.3s ease;
+                    position: relative;
+                    z-index: 10;
                 `;
                 cellElement.appendChild(mineIcon);
-                cellElement.style.background = `linear-gradient(135deg, ${MILITARY_COLORS.ACCENT_RED}, #8a1a25)`;
+                cellElement.style.background = `linear-gradient(135deg, ${MILITARY_COLORS.ACCENT_RED}, #9a1830)`;
             } else if (cellData.adjacentMines > 0) {
                 const numberEl = document.createElement('span');
                 numberEl.textContent = cellData.adjacentMines;
                 numberEl.style.cssText = `
                     color: ${this.getNumberColor(cellData.adjacentMines)};
-                    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+                    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
                     animation: military-number-pop 0.2s ease;
+                    position: relative;
+                    z-index: 10;
                 `;
                 cellElement.appendChild(numberEl);
             }
         } else {
-            const isEvenRow = row % 2 === 0;
-            const isEvenCol = col % 2 === 0;
-            const camoPattern = (isEvenRow && isEvenCol) || (!isEvenRow && !isEvenCol) ? 
-                MILITARY_COLORS.CAMO_MEDIUM : MILITARY_COLORS.CAMO_DARK;
+            const camoPattern = this.board[row][col].camoPattern || this.getCamoPatternForCell(row, col);
+            const mapTextureCSS = this.getMapTextureCSS(camoPattern.bg, false);
             
-            cellElement.style.background = `linear-gradient(135deg, ${camoPattern}, ${MILITARY_COLORS.CAMO_DARK})`;
-            cellElement.style.boxShadow = 'inset 1px 1px 2px rgba(255, 255, 255, 0.1), inset -1px -1px 2px rgba(0, 0, 0, 0.2)';
+            cellElement.style.cssText = `
+                width: ${cellElement.offsetWidth}px;
+                height: ${cellElement.offsetHeight}px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                ${mapTextureCSS}
+                cursor: pointer;
+                position: relative;
+                transition: all 0.1s ease;
+                user-select: none;
+                font-weight: 700;
+                font-size: ${Math.max(cellElement.offsetWidth * 0.45, 10)}px;
+                border: 1px solid ${MILITARY_COLORS.GRID_LINE};
+                box-shadow: 
+                    inset 1px 1px 3px rgba(255, 255, 255, 0.15),
+                    inset -1px -1px 3px rgba(0, 0, 0, 0.2),
+                    0 1px 2px rgba(0, 0, 0, 0.1);
+            `;
+
+            if (highlightEl) {
+                cellElement.appendChild(highlightEl);
+            }
             
             if (cellData.isFlagged) {
                 const flagIcon = document.createElement('span');
                 flagIcon.innerHTML = '🚩';
                 flagIcon.style.cssText = `
-                    font-size: ${Math.max(cellElement.offsetWidth * 0.6, 14)}px;
+                    font-size: ${Math.max(cellElement.offsetWidth * 0.55, 12)}px;
                     animation: military-flag-wave 1s ease-in-out infinite;
+                    position: relative;
+                    z-index: 10;
                 `;
                 cellElement.appendChild(flagIcon);
             } else if (cellData.isQuestioned) {
                 const questionIcon = document.createElement('span');
                 questionIcon.textContent = '?';
                 questionIcon.style.cssText = `
-                    font-size: ${Math.max(cellElement.offsetWidth * 0.6, 14)}px;
+                    font-size: ${Math.max(cellElement.offsetWidth * 0.55, 12)}px;
                     color: ${MILITARY_COLORS.ACCENT_YELLOW};
                     font-weight: 800;
+                    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+                    position: relative;
+                    z-index: 10;
                 `;
                 cellElement.appendChild(questionIcon);
             }
@@ -742,8 +909,8 @@ class MilitaryMinesweeperGame extends GameInterface {
     getNumberColor(count) {
         const colors = [
             '',
-            '#4a9c2d',
             '#1e5f8f',
+            '#2d7a3d',
             '#c41e3a',
             '#7c3aed',
             '#854d0e',
@@ -765,8 +932,17 @@ class MilitaryMinesweeperGame extends GameInterface {
     updateTimerDisplay() {
         const timerEl = document.getElementById('timer-value');
         if (timerEl) {
-            const display = Math.min(999, this.timer);
-            timerEl.textContent = display.toString().padStart(3, '0');
+            const hours = Math.floor(this.timer / 3600);
+            const minutes = Math.floor((this.timer % 3600) / 60);
+            const seconds = this.timer % 60;
+            
+            let display;
+            if (hours > 0) {
+                display = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            } else {
+                display = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+            timerEl.textContent = display;
         }
     }
 
@@ -845,9 +1021,9 @@ class MilitaryMinesweeperGame extends GameInterface {
             boardContainer.style.animation = 'military-victory-glow 1.5s ease-in-out infinite';
         }
 
-        this.audioManager.playSound('perfect', { pitch: 1.0, volume: 0.6 });
-        setTimeout(() => this.audioManager.playSound('combo', { pitch: 1.2, volume: 0.5 }), 200);
-        setTimeout(() => this.audioManager.playSound('combo', { pitch: 1.4, volume: 0.4 }), 400);
+        this.audioManager.playSound('perfect', { pitch: 1.0, volume: 0.5 });
+        setTimeout(() => this.audioManager.playSound('combo', { pitch: 1.2, volume: 0.4 }), 200);
+        setTimeout(() => this.audioManager.playSound('combo', { pitch: 1.4, volume: 0.3 }), 400);
 
         this.showVictoryScreen();
     }
@@ -896,8 +1072,8 @@ class MilitaryMinesweeperGame extends GameInterface {
         this.createDebris(centerX, centerY);
         this.createSmoke(centerX, centerY);
 
-        this.audioManager.playSound('miss', { pitch: 0.5, volume: 0.8, type: 'sawtooth' });
-        this.triggerShake(30, 500);
+        this.audioManager.playSound('miss', { pitch: 0.5, volume: 0.7, type: 'sawtooth' });
+        this.triggerShake(25, 400);
 
         setTimeout(() => {
             this.showGameOverScreen();
@@ -905,16 +1081,16 @@ class MilitaryMinesweeperGame extends GameInterface {
     }
 
     createDebris(centerX, centerY) {
-        const debrisCount = 25;
+        const debrisCount = 20;
         for (let i = 0; i < debrisCount; i++) {
             const debris = document.createElement('div');
             const angle = (Math.PI * 2 * i) / debrisCount + Math.random() * 0.5;
-            const distance = 80 + Math.random() * 150;
+            const distance = 60 + Math.random() * 120;
             const x = Math.cos(angle) * distance;
-            const y = Math.sin(angle) * distance - 50;
+            const y = Math.sin(angle) * distance - 40;
             
-            const size = 4 + Math.random() * 8;
-            const colors = ['#5c4a3a', '#8b7355', '#a0522d', '#d2691e', '#8b4513'];
+            const size = 3 + Math.random() * 6;
+            const colors = ['#5c4a3a', '#8b7355', '#a0522d', '#d2691e', '#8b4513', '#c4b4a4'];
             const color = colors[Math.floor(Math.random() * colors.length)];
             
             debris.style.cssText = `
@@ -937,11 +1113,11 @@ class MilitaryMinesweeperGame extends GameInterface {
     }
 
     createSmoke(centerX, centerY) {
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 6; i++) {
             const smoke = document.createElement('div');
-            const delay = i * 100;
-            const offsetX = (Math.random() - 0.5) * 60;
-            const size = 30 + Math.random() * 40;
+            const delay = i * 80;
+            const offsetX = (Math.random() - 0.5) * 50;
+            const size = 25 + Math.random() * 35;
             
             smoke.style.cssText = `
                 position: absolute;
@@ -949,7 +1125,7 @@ class MilitaryMinesweeperGame extends GameInterface {
                 height: ${size}px;
                 left: ${centerX + offsetX - size/2}px;
                 top: ${centerY - size/2}px;
-                background: radial-gradient(circle, rgba(100, 100, 100, 0.8) 0%, rgba(80, 80, 80, 0.4) 40%, transparent 100%);
+                background: radial-gradient(circle, rgba(120, 120, 120, 0.7) 0%, rgba(90, 90, 90, 0.35) 40%, transparent 100%);
                 border-radius: 50%;
                 pointer-events: none;
                 z-index: 99;
@@ -986,10 +1162,10 @@ class MilitaryMinesweeperGame extends GameInterface {
         const card = document.createElement('div');
         card.className = 'military-victory-card';
         card.style.cssText = `
-            background: linear-gradient(135deg, ${MILITARY_COLORS.CAMO_DARK}, ${MILITARY_COLORS.TACTICAL_DARK});
+            background: linear-gradient(135deg, ${MILITARY_COLORS.CAMO_TAN}, ${MILITARY_COLORS.CAMO_SAND});
             border: 3px solid ${MILITARY_COLORS.ACCENT_GREEN};
             border-radius: 12px;
-            padding: 40px;
+            padding: 35px;
             text-align: center;
             max-width: 400px;
             animation: military-cell-reveal 0.5s ease;
@@ -1000,19 +1176,19 @@ class MilitaryMinesweeperGame extends GameInterface {
         
         card.innerHTML = `
             <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, ${MILITARY_COLORS.ACCENT_GREEN}, ${MILITARY_COLORS.ACCENT_YELLOW});"></div>
-            <div style="font-size: 4rem; margin-bottom: 15px;">🏆</div>
-            <h2 style="font-size: 1.8rem; font-weight: 800; color: ${MILITARY_COLORS.ACCENT_GREEN}; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 2px;">任务完成！</h2>
-            <p style="color: ${MILITARY_COLORS.TEXT_SECONDARY}; margin-bottom: 25px; font-size: 0.95rem; line-height: 1.6;">
+            <div style="font-size: 3.5rem; margin-bottom: 12px;">🏆</div>
+            <h2 style="font-size: 1.6rem; font-weight: 800; color: ${MILITARY_COLORS.CAMO_GREEN_DARK}; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 2px;">任务完成！</h2>
+            <p style="color: ${MILITARY_COLORS.TEXT_SECONDARY}; margin-bottom: 20px; font-size: 0.9rem; line-height: 1.6;">
                 区域已安全清除所有地雷<br>
                 难度: <span style="color: ${MILITARY_COLORS.ACCENT_YELLOW}; font-weight: 700;">${MILITARY_DIFFICULTY[this.currentDifficulty].name}</span><br>
                 用时: <span style="color: ${MILITARY_COLORS.ACCENT_GREEN}; font-weight: 700;">${timeStr}</span>
             </p>
-            <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                 <button class="military-retry-btn" style="
-                    padding: 12px 24px;
-                    font-size: 1rem;
+                    padding: 10px 20px;
+                    font-size: 0.9rem;
                     font-weight: 700;
-                    background: linear-gradient(135deg, ${MILITARY_COLORS.ACCENT_GREEN}, ${MILITARY_COLORS.CAMO_GREEN});
+                    background: linear-gradient(135deg, ${MILITARY_COLORS.ACCENT_GREEN}, ${MILITARY_COLORS.CAMO_GREEN_DARK});
                     border: 2px solid ${MILITARY_COLORS.ACCENT_GREEN};
                     color: white;
                     border-radius: 6px;
@@ -1022,8 +1198,8 @@ class MilitaryMinesweeperGame extends GameInterface {
                     letter-spacing: 1px;
                 ">再来一局</button>
                 <button class="military-exit-btn" style="
-                    padding: 12px 24px;
-                    font-size: 1rem;
+                    padding: 10px 20px;
+                    font-size: 0.9rem;
                     font-weight: 700;
                     background: ${MILITARY_COLORS.TACTICAL_GRAY};
                     border: 2px solid ${MILITARY_COLORS.BORDER_METAL};
@@ -1079,10 +1255,10 @@ class MilitaryMinesweeperGame extends GameInterface {
         const card = document.createElement('div');
         card.className = 'military-gameover-card';
         card.style.cssText = `
-            background: linear-gradient(135deg, ${MILITARY_COLORS.TACTICAL_DARK}, #2a1a1a);
+            background: linear-gradient(135deg, ${MILITARY_COLORS.CAMO_TAN}, #d4c4b4);
             border: 3px solid ${MILITARY_COLORS.ACCENT_RED};
             border-radius: 12px;
-            padding: 40px;
+            padding: 35px;
             text-align: center;
             max-width: 400px;
             animation: military-cell-reveal 0.5s ease;
@@ -1093,19 +1269,19 @@ class MilitaryMinesweeperGame extends GameInterface {
         
         card.innerHTML = `
             <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, ${MILITARY_COLORS.ACCENT_RED}, ${MILITARY_COLORS.ACCENT_YELLOW});"></div>
-            <div style="font-size: 4rem; margin-bottom: 15px;">💥</div>
-            <h2 style="font-size: 1.8rem; font-weight: 800; color: ${MILITARY_COLORS.ACCENT_RED}; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 2px;">任务失败！</h2>
-            <p style="color: ${MILITARY_COLORS.TEXT_SECONDARY}; margin-bottom: 25px; font-size: 0.95rem; line-height: 1.6;">
+            <div style="font-size: 3.5rem; margin-bottom: 12px;">💥</div>
+            <h2 style="font-size: 1.6rem; font-weight: 800; color: ${MILITARY_COLORS.ACCENT_RED}; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 2px;">任务失败！</h2>
+            <p style="color: ${MILITARY_COLORS.TEXT_SECONDARY}; margin-bottom: 20px; font-size: 0.9rem; line-height: 1.6;">
                 触发地雷，任务终止<br>
                 难度: <span style="color: ${MILITARY_COLORS.ACCENT_YELLOW}; font-weight: 700;">${MILITARY_DIFFICULTY[this.currentDifficulty].name}</span><br>
                 存活时间: <span style="color: ${MILITARY_COLORS.TEXT_PRIMARY}; font-weight: 700;">${timeStr}</span>
             </p>
-            <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                 <button class="military-retry-btn" style="
-                    padding: 12px 24px;
-                    font-size: 1rem;
+                    padding: 10px 20px;
+                    font-size: 0.9rem;
                     font-weight: 700;
-                    background: linear-gradient(135deg, ${MILITARY_COLORS.ACCENT_RED}, #8a1a25);
+                    background: linear-gradient(135deg, ${MILITARY_COLORS.ACCENT_RED}, #9a1830);
                     border: 2px solid ${MILITARY_COLORS.ACCENT_RED};
                     color: white;
                     border-radius: 6px;
@@ -1115,8 +1291,8 @@ class MilitaryMinesweeperGame extends GameInterface {
                     letter-spacing: 1px;
                 ">重新挑战</button>
                 <button class="military-exit-btn" style="
-                    padding: 12px 24px;
-                    font-size: 1rem;
+                    padding: 10px 20px;
+                    font-size: 0.9rem;
                     font-weight: 700;
                     background: ${MILITARY_COLORS.TACTICAL_GRAY};
                     border: 2px solid ${MILITARY_COLORS.BORDER_METAL};
