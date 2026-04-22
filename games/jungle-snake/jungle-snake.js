@@ -25,8 +25,9 @@ const JUNGLE_COLORS = {
     GRASS_LIGHT: '#7bed9f',
     GRASS_DARK: '#2ed573',
     FIREFLY: '#fff59d',
-    TONGUE_RED: '#ff6b6b',
-    TONGUE_DARK: '#c0392b'
+    TONGUE_RED: '#ff6b9d',
+    TONGUE_DARK: '#c44569',
+    TONGUE_PINK: '#ffb3d9'
 };
 
 const FOOD_TYPES = {
@@ -62,7 +63,7 @@ const FOOD_TYPES = {
     }
 };
 
-const GRID_SIZE = 30;
+const GRID_SIZE = 25;
 const INITIAL_SPEED = 150;
 const BOOST_SPEED = 70;
 const INITIAL_SNAKE_LENGTH = 5;
@@ -110,10 +111,7 @@ class JungleSnakeGame extends GameInterface {
         this.highScore = this.loadHighScore();
         
         this.particles = [];
-        this.grassDecorations = [];
-        this.fireflies = [];
-        this.fallingLeaves = [];
-        this.mushroomDecorations = [];
+        this.decorativeFireflies = [];
         this.audioManager = new AudioManager();
     }
 
@@ -131,7 +129,7 @@ class JungleSnakeGame extends GameInterface {
         this.createGameUI();
         this.audioManager.init();
         this.setupGrid();
-        this.generateDecorations();
+        this.generateDecorativeElements();
         console.log('丛林贪吃蛇游戏已初始化');
     }
 
@@ -162,11 +160,11 @@ class JungleSnakeGame extends GameInterface {
         this.canvas.style.cssText = `
             background: linear-gradient(180deg, ${JUNGLE_COLORS.DARK_FOREST} 0%, ${JUNGLE_COLORS.FOREST_GREEN} 50%, ${JUNGLE_COLORS.LEAF_GREEN} 100%);
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
             padding: 15px;
             overflow: hidden;
+            gap: 20px;
         `;
 
         const style = document.createElement('style');
@@ -187,20 +185,6 @@ class JungleSnakeGame extends GameInterface {
                 from { opacity: 0; transform: scale(0.8); }
                 to { opacity: 1; transform: scale(1); }
             }
-            @keyframes grass-sway {
-                0%, 100% { transform: rotate(-5deg); }
-                50% { transform: rotate(5deg); }
-            }
-            @keyframes leaf-fall {
-                0% { transform: translateY(-20px) rotate(0deg); opacity: 0; }
-                20% { opacity: 1; }
-                100% { transform: translateY(100px) rotate(360deg); opacity: 0; }
-            }
-            @keyframes countdown-pop {
-                0% { transform: scale(0); opacity: 0; }
-                50% { transform: scale(1.3); opacity: 1; }
-                100% { transform: scale(1); opacity: 1; }
-            }
             @keyframes firefly-glow {
                 0%, 100% { opacity: 0.3; transform: scale(0.8); }
                 50% { opacity: 1; transform: scale(1.2); }
@@ -209,25 +193,45 @@ class JungleSnakeGame extends GameInterface {
                 0%, 100% { transform: translateY(0); }
                 50% { transform: translateY(-10px); }
             }
+            @keyframes tongue-wiggle {
+                0%, 100% { transform: scaleX(1); }
+                50% { transform: scaleX(1.1); }
+            }
+            @keyframes pulse-border {
+                0%, 100% { box-shadow: 0 0 20px rgba(109, 191, 122, 0.4); }
+                50% { box-shadow: 0 0 30px rgba(109, 191, 122, 0.7); }
+            }
         `;
         document.head.appendChild(style);
 
-        this.gameContainer = document.createElement('div');
-        this.gameContainer.className = 'jungle-snake-container';
-        this.gameContainer.style.cssText = `
+        this.leftPanel = document.createElement('div');
+        this.leftPanel.className = 'left-panel';
+        this.leftPanel.style.cssText = `
             display: flex;
             flex-direction: column;
-            align-items: center;
-            gap: 12px;
-            width: 100%;
+            gap: 15px;
+            width: 220px;
             height: 100%;
+            max-height: 650px;
             font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
         `;
 
         this.createHUD();
-        this.createGameCanvas();
         this.createControls();
 
+        this.gameContainer = document.createElement('div');
+        this.gameContainer.className = 'game-container';
+        this.gameContainer.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+            font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+        `;
+
+        this.createGameCanvas();
+
+        this.canvas.appendChild(this.leftPanel);
         this.canvas.appendChild(this.gameContainer);
     }
 
@@ -236,11 +240,9 @@ class JungleSnakeGame extends GameInterface {
         hud.className = 'snake-hud';
         hud.style.cssText = `
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
-            max-width: 750px;
-            padding: 15px 30px;
+            flex-direction: column;
+            gap: 12px;
+            padding: 20px;
             background: linear-gradient(135deg, rgba(26, 58, 37, 0.95), rgba(45, 90, 61, 0.95));
             backdrop-filter: blur(15px);
             border: 2px solid ${JUNGLE_COLORS.MOSS_GREEN};
@@ -248,82 +250,124 @@ class JungleSnakeGame extends GameInterface {
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         `;
 
-        const scoreDisplay = document.createElement('div');
-        scoreDisplay.className = 'score-display';
-        scoreDisplay.style.cssText = `
+        const title = document.createElement('div');
+        title.style.cssText = `
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: ${JUNGLE_COLORS.LIME_GREEN};
+            text-align: center;
+            padding-bottom: 12px;
+            border-bottom: 1px solid ${JUNGLE_COLORS.MOSS_GREEN};
+            margin-bottom: 5px;
+        `;
+        title.innerHTML = '🐍 游戏状态';
+        hud.appendChild(title);
+
+        const items = [
+            { id: 'current-score', label: '当前分数', value: '0', icon: '🎯', color: JUNGLE_COLORS.ACCENT_GOLD },
+            { id: 'snake-length', label: '蛇身长度', value: INITIAL_SNAKE_LENGTH, icon: '📏', color: JUNGLE_COLORS.LIME_GREEN },
+            { id: 'high-score', label: '最高纪录', value: this.highScore, icon: '🏆', color: JUNGLE_COLORS.ACCENT_GOLD },
+            { id: 'speed-indicator', label: '速度状态', value: '🐢 正常', icon: '⚡', color: JUNGLE_COLORS.TEXT_PRIMARY }
+        ];
+
+        items.forEach(item => {
+            const itemEl = document.createElement('div');
+            itemEl.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 10px 12px;
+                background: rgba(0, 0, 0, 0.2);
+                border-radius: 10px;
+            `;
+            
+            itemEl.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 1.2rem;">${item.icon}</span>
+                    <span style="font-size: 0.85rem; color: ${JUNGLE_COLORS.TEXT_SECONDARY}; font-weight: 600;">${item.label}</span>
+                </div>
+                <span id="${item.id}" style="font-size: 1.1rem; font-weight: 800; color: ${item.color};">${item.value}</span>
+            `;
+            
+            hud.appendChild(itemEl);
+        });
+
+        this.leftPanel.appendChild(hud);
+    }
+
+    createControls() {
+        const controls = document.createElement('div');
+        controls.className = 'controls-panel';
+        controls.style.cssText = `
             display: flex;
             flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            padding: 8px 20px;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 12px;
-            min-width: 120px;
-        `;
-        scoreDisplay.innerHTML = `
-            <span style="font-size: 0.8rem; color: ${JUNGLE_COLORS.TEXT_SECONDARY}; font-weight: 600;">当前分数</span>
-            <span id="current-score" style="font-size: 2.2rem; font-weight: 800; color: ${JUNGLE_COLORS.ACCENT_GOLD}; text-shadow: 0 0 15px rgba(249, 202, 36, 0.6);">0</span>
+            gap: 10px;
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(26, 58, 37, 0.95), rgba(45, 90, 61, 0.95));
+            backdrop-filter: blur(15px);
+            border: 2px solid ${JUNGLE_COLORS.MOSS_GREEN};
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            flex: 1;
         `;
 
-        const lengthDisplay = document.createElement('div');
-        lengthDisplay.className = 'length-display';
-        lengthDisplay.style.cssText = `
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            padding: 8px 20px;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 12px;
-            min-width: 120px;
+        const title = document.createElement('div');
+        title.style.cssText = `
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: ${JUNGLE_COLORS.LIME_GREEN};
+            text-align: center;
+            padding-bottom: 12px;
+            border-bottom: 1px solid ${JUNGLE_COLORS.MOSS_GREEN};
+            margin-bottom: 5px;
         `;
-        lengthDisplay.innerHTML = `
-            <span style="font-size: 0.8rem; color: ${JUNGLE_COLORS.TEXT_SECONDARY}; font-weight: 600;">蛇身长度</span>
-            <span id="snake-length" style="font-size: 2.2rem; font-weight: 800; color: ${JUNGLE_COLORS.LIME_GREEN}; text-shadow: 0 0 15px rgba(109, 191, 122, 0.6);">${INITIAL_SNAKE_LENGTH}</span>
-        `;
+        title.innerHTML = '🎮 操作说明';
+        controls.appendChild(title);
 
-        const highScoreDisplay = document.createElement('div');
-        highScoreDisplay.className = 'high-score-display';
-        highScoreDisplay.style.cssText = `
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            padding: 8px 20px;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 12px;
-            min-width: 120px;
-        `;
-        highScoreDisplay.innerHTML = `
-            <span style="font-size: 0.8rem; color: ${JUNGLE_COLORS.TEXT_SECONDARY}; font-weight: 600;">最高纪录</span>
-            <span id="high-score" style="font-size: 2.2rem; font-weight: 800; color: ${JUNGLE_COLORS.ACCENT_GOLD}; text-shadow: 0 0 15px rgba(249, 202, 36, 0.6);">${this.highScore}</span>
-        `;
+        const controlItems = [
+            { keys: ['↑', '↓', '←', '→'], desc: '或 WASD 控制方向' },
+            { keys: ['空格'], desc: '按住加速 (双倍得分)' },
+            { keys: ['P'], desc: '暂停游戏' }
+        ];
 
-        const speedDisplay = document.createElement('div');
-        speedDisplay.className = 'speed-display';
-        speedDisplay.id = 'speed-display';
-        speedDisplay.style.cssText = `
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            padding: 8px 20px;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 12px;
-            min-width: 120px;
-            transition: all 0.3s ease;
-        `;
-        speedDisplay.innerHTML = `
-            <span style="font-size: 0.8rem; color: ${JUNGLE_COLORS.TEXT_SECONDARY}; font-weight: 600;">速度状态</span>
-            <span id="speed-indicator" style="font-size: 1.1rem; font-weight: 700; color: ${JUNGLE_COLORS.TEXT_PRIMARY};">🐢 正常</span>
-        `;
+        controlItems.forEach(item => {
+            const itemEl = document.createElement('div');
+            itemEl.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                padding: 10px 12px;
+                background: rgba(0, 0, 0, 0.2);
+                border-radius: 10px;
+            `;
+            
+            const keysDisplay = item.keys.map(k => 
+                `<span style="padding: 4px 10px; background: ${JUNGLE_COLORS.MOSS_GREEN}; border-radius: 6px; font-weight: 700; font-size: 0.8rem; color: ${JUNGLE_COLORS.TEXT_PRIMARY};">${k}</span>`
+            ).join(' ');
+            
+            itemEl.innerHTML = `
+                <div style="display: flex; gap: 5px; flex-wrap: wrap;">${keysDisplay}</div>
+                <span style="font-size: 0.8rem; color: ${JUNGLE_COLORS.TEXT_SECONDARY};">${item.desc}</span>
+            `;
+            
+            controls.appendChild(itemEl);
+        });
 
-        hud.appendChild(scoreDisplay);
-        hud.appendChild(lengthDisplay);
-        hud.appendChild(speedDisplay);
-        hud.appendChild(highScoreDisplay);
+        const tip = document.createElement('div');
+        tip.style.cssText = `
+            margin-top: 15px;
+            padding: 12px;
+            background: rgba(249, 202, 36, 0.1);
+            border: 1px solid rgba(249, 202, 36, 0.3);
+            border-radius: 10px;
+            font-size: 0.75rem;
+            color: ${JUNGLE_COLORS.TEXT_SECONDARY};
+            line-height: 1.5;
+        `;
+        tip.innerHTML = '💡 <strong>小提示：</strong><br>按住空格键加速时吃到食物可以获得双倍分数！';
+        controls.appendChild(tip);
 
-        this.gameContainer.appendChild(hud);
+        this.leftPanel.appendChild(controls);
     }
 
     createGameCanvas() {
@@ -331,10 +375,11 @@ class JungleSnakeGame extends GameInterface {
         canvasWrapper.className = 'game-canvas-wrapper';
         canvasWrapper.style.cssText = `
             position: relative;
-            padding: 8px;
+            padding: 10px;
             background: linear-gradient(135deg, ${JUNGLE_COLORS.MOSS_GREEN}, ${JUNGLE_COLORS.LIME_GREEN});
             border-radius: 20px;
             box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.1);
+            animation: pulse-border 3s ease-in-out infinite;
         `;
 
         this.gameCanvas = document.createElement('canvas');
@@ -352,50 +397,9 @@ class JungleSnakeGame extends GameInterface {
         this.ctx = this.gameCanvas.getContext('2d');
     }
 
-    createControls() {
-        const controls = document.createElement('div');
-        controls.className = 'controls-hint';
-        controls.style.cssText = `
-            display: flex;
-            gap: 25px;
-            justify-content: center;
-            flex-wrap: wrap;
-            padding: 12px 25px;
-            background: rgba(26, 58, 37, 0.8);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            border: 1px solid ${JUNGLE_COLORS.MOSS_GREEN};
-        `;
-
-        const controlItems = [
-            { key: '↑↓←→ / WASD', desc: '控制方向', icon: '🎮' },
-            { key: '空格', desc: '按住加速 (双倍得分)', icon: '⚡' },
-            { key: 'P键', desc: '暂停游戏', icon: '⏸️' }
-        ];
-
-        controlItems.forEach(item => {
-            const controlEl = document.createElement('div');
-            controlEl.style.cssText = `
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            `;
-            controlEl.innerHTML = `
-                <span style="font-size: 1.3rem;">${item.icon}</span>
-                <div style="display: flex; flex-direction: column; gap: 2px;">
-                    <span style="padding: 3px 10px; background: ${JUNGLE_COLORS.MOSS_GREEN}; border-radius: 6px; font-weight: 700; font-size: 0.8rem; color: ${JUNGLE_COLORS.TEXT_PRIMARY};">${item.key}</span>
-                    <span style="font-size: 0.75rem; color: ${JUNGLE_COLORS.TEXT_SECONDARY};">${item.desc}</span>
-                </div>
-            `;
-            controls.appendChild(controlEl);
-        });
-
-        this.gameContainer.appendChild(controls);
-    }
-
     setupGrid() {
-        const containerWidth = Math.min(this.canvas.clientWidth - 60, 850);
-        const containerHeight = this.canvas.clientHeight - 220;
+        const containerWidth = Math.min(this.canvas.clientWidth - 280, 700);
+        const containerHeight = Math.min(this.canvas.clientHeight - 60, 650);
         
         const size = Math.min(containerWidth, containerHeight);
         this.gameCanvas.width = size;
@@ -406,56 +410,16 @@ class JungleSnakeGame extends GameInterface {
         this.gridHeight = this.gridWidth;
     }
 
-    generateDecorations() {
-        this.grassDecorations = [];
-        for (let i = 0; i < 50; i++) {
-            this.grassDecorations.push({
-                x: Math.random() * this.gameCanvas.width,
-                y: Math.random() * this.gameCanvas.height,
-                size: 10 + Math.random() * 15,
-                rotation: Math.random() * 360,
-                swayOffset: Math.random() * Math.PI * 2,
-                opacity: 0.12 + Math.random() * 0.2,
-                type: Math.floor(Math.random() * 3)
-            });
-        }
-
-        this.fireflies = [];
-        for (let i = 0; i < 15; i++) {
-            this.fireflies.push({
-                x: Math.random() * this.gameCanvas.width,
-                y: Math.random() * this.gameCanvas.height,
-                size: 3 + Math.random() * 4,
-                vx: (Math.random() - 0.5) * 0.8,
-                vy: (Math.random() - 0.5) * 0.8,
-                phase: Math.random() * Math.PI * 2,
+    generateDecorativeElements() {
+        this.decorativeFireflies = [];
+        for (let i = 0; i < 20; i++) {
+            this.decorativeFireflies.push({
+                x: Math.random() * this.canvas.clientWidth,
+                y: Math.random() * this.canvas.clientHeight,
+                size: 3 + Math.random() * 5,
+                vx: (Math.random() - 0.5) * 0.6,
+                vy: (Math.random() - 0.5) * 0.6,
                 glowPhase: Math.random() * Math.PI * 2
-            });
-        }
-
-        this.fallingLeaves = [];
-        for (let i = 0; i < 12; i++) {
-            this.fallingLeaves.push({
-                x: Math.random() * this.gameCanvas.width,
-                y: -Math.random() * this.gameCanvas.height,
-                size: 8 + Math.random() * 10,
-                rotation: Math.random() * 360,
-                rotationSpeed: (Math.random() - 0.5) * 3,
-                fallSpeed: 0.3 + Math.random() * 0.5,
-                swayAmplitude: 20 + Math.random() * 30,
-                swaySpeed: 0.5 + Math.random() * 0.5,
-                phase: Math.random() * Math.PI * 2,
-                color: ['#4a7c59', '#6dbf7a', '#8bc34a', '#aed581', '#c5e1a5'][Math.floor(Math.random() * 5)]
-            });
-        }
-
-        this.mushroomDecorations = [];
-        for (let i = 0; i < 8; i++) {
-            this.mushroomDecorations.push({
-                x: Math.random() * this.gameCanvas.width,
-                y: Math.random() * this.gameCanvas.height,
-                size: 12 + Math.random() * 18,
-                color: ['#e74c3c', '#e67e22', '#f39c12'][Math.floor(Math.random() * 3)]
             });
         }
     }
@@ -561,13 +525,36 @@ class JungleSnakeGame extends GameInterface {
                 this.lastMoveTime = currentTime;
             }
             this.updateParticles();
-            this.updateFireflies();
-            this.updateFallingLeaves();
         }
         
+        this.updateDecorativeFireflies();
         this.render();
         
         this.animationFrameId = requestAnimationFrame(() => this.gameLoop());
+    }
+
+    updateDecorativeFireflies() {
+        this.decorativeFireflies.forEach(firefly => {
+            firefly.x += firefly.vx;
+            firefly.y += firefly.vy;
+            firefly.glowPhase += 0.03;
+            
+            if (firefly.x < 0 || firefly.x > this.canvas.clientWidth) {
+                firefly.vx *= -1;
+            }
+            if (firefly.y < 0 || firefly.y > this.canvas.clientHeight) {
+                firefly.vy *= -1;
+            }
+            
+            if (Math.random() < 0.005) {
+                firefly.vx += (Math.random() - 0.5) * 0.15;
+                firefly.vy += (Math.random() - 0.5) * 0.15;
+                
+                const maxSpeed = 1.2;
+                firefly.vx = Math.max(-maxSpeed, Math.min(maxSpeed, firefly.vx));
+                firefly.vy = Math.max(-maxSpeed, Math.min(maxSpeed, firefly.vy));
+            }
+        });
     }
 
     moveSnake() {
@@ -666,48 +653,6 @@ class JungleSnakeGame extends GameInterface {
                 this.particles.splice(i, 1);
             }
         }
-    }
-
-    updateFireflies() {
-        const time = performance.now() / 1000;
-        
-        this.fireflies.forEach(firefly => {
-            firefly.x += firefly.vx;
-            firefly.y += firefly.vy;
-            firefly.phase += 0.02;
-            firefly.glowPhase += 0.05;
-            
-            if (firefly.x < 0 || firefly.x > this.gameCanvas.width) {
-                firefly.vx *= -1;
-            }
-            if (firefly.y < 0 || firefly.y > this.gameCanvas.height) {
-                firefly.vy *= -1;
-            }
-            
-            if (Math.random() < 0.01) {
-                firefly.vx += (Math.random() - 0.5) * 0.2;
-                firefly.vy += (Math.random() - 0.5) * 0.2;
-                
-                const maxSpeed = 1.5;
-                firefly.vx = Math.max(-maxSpeed, Math.min(maxSpeed, firefly.vx));
-                firefly.vy = Math.max(-maxSpeed, Math.min(maxSpeed, firefly.vy));
-            }
-        });
-    }
-
-    updateFallingLeaves() {
-        const time = performance.now() / 1000;
-        
-        this.fallingLeaves.forEach(leaf => {
-            leaf.y += leaf.fallSpeed;
-            leaf.rotation += leaf.rotationSpeed;
-            leaf.phase += 0.03;
-            
-            if (leaf.y > this.gameCanvas.height + 20) {
-                leaf.y = -20;
-                leaf.x = Math.random() * this.gameCanvas.width;
-            }
-        });
     }
 
     gameOver() {
@@ -810,11 +755,7 @@ class JungleSnakeGame extends GameInterface {
         ctx.fillStyle = JUNGLE_COLORS.DARK_FOREST;
         ctx.fillRect(0, 0, width, height);
         
-        this.drawBackgroundDecorations();
-        this.drawGrass();
-        this.drawMushroomDecorations();
-        this.drawFireflies();
-        this.drawFallingLeaves();
+        this.drawBackgroundPattern();
         this.drawGrid();
         
         if (this.food) {
@@ -833,7 +774,7 @@ class JungleSnakeGame extends GameInterface {
         }
     }
 
-    drawBackgroundDecorations() {
+    drawBackgroundPattern() {
         const ctx = this.ctx;
         const time = performance.now() / 1000;
         
@@ -845,147 +786,25 @@ class JungleSnakeGame extends GameInterface {
             this.gameCanvas.height / 2,
             this.gameCanvas.width / 1.5
         );
-        gradient.addColorStop(0, 'rgba(45, 90, 61, 0.3)');
+        gradient.addColorStop(0, 'rgba(45, 90, 61, 0.2)');
         gradient.addColorStop(1, 'rgba(13, 31, 20, 0)');
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, this.gameCanvas.width, this.gameCanvas.height);
         
-        for (let i = 0; i < 5; i++) {
-            const x = (i * this.gameCanvas.width / 4) + Math.sin(time * 0.3 + i) * 20;
-            const y = (i * this.gameCanvas.height / 4) + Math.cos(time * 0.2 + i * 0.5) * 15;
+        ctx.fillStyle = 'rgba(74, 124, 89, 0.05)';
+        for (let i = 0; i < 15; i++) {
+            const x = (i * 73 + Math.sin(time * 0.1 + i) * 5) % this.gameCanvas.width;
+            const y = (i * 47 + Math.cos(time * 0.08 + i) * 3) % this.gameCanvas.height;
             
-            const vignette = ctx.createRadialGradient(x, y, 0, x, y, 80);
-            const alpha = 0.05 + Math.sin(time + i) * 0.02;
-            vignette.addColorStop(0, 'rgba(74, 124, 89, ' + alpha + ')');
-            vignette.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            ctx.fillStyle = vignette;
-            ctx.fillRect(x - 80, y - 80, 160, 160);
+            ctx.beginPath();
+            ctx.arc(x, y, 15 + Math.sin(time + i) * 5, 0, Math.PI * 2);
+            ctx.fill();
         }
-    }
-
-    drawGrass() {
-        const ctx = this.ctx;
-        const time = performance.now() / 1000;
-        
-        this.grassDecorations.forEach(grass => {
-            ctx.save();
-            ctx.translate(grass.x, grass.y);
-            ctx.rotate((grass.rotation + Math.sin(time + grass.swayOffset) * 5) * Math.PI / 180);
-            ctx.globalAlpha = grass.opacity;
-            
-            const colors = [JUNGLE_COLORS.GRASS_DARK, JUNGLE_COLORS.GRASS_LIGHT, JUNGLE_COLORS.MOSS_GREEN];
-            ctx.fillStyle = colors[grass.type];
-            
-            for (let i = 0; i < 3; i++) {
-                ctx.beginPath();
-                ctx.moveTo(i * 4 - 4, 0);
-                ctx.quadraticCurveTo(i * 4 - 4 + grass.size / 4, -grass.size / 2, i * 4 - 4, -grass.size);
-                ctx.quadraticCurveTo(i * 4 - 4 - grass.size / 4, -grass.size / 2, i * 4 - 4, 0);
-                ctx.fill();
-            }
-            
-            ctx.restore();
-        });
-    }
-
-    drawMushroomDecorations() {
-        const ctx = this.ctx;
-        const time = performance.now() / 1000;
-        
-        this.mushroomDecorations.forEach(mushroom => {
-            ctx.save();
-            ctx.globalAlpha = 0.15;
-            
-            ctx.fillStyle = '#f5deb3';
-            ctx.beginPath();
-            ctx.roundRect(mushroom.x - mushroom.size * 0.15, mushroom.y, mushroom.size * 0.3, mushroom.size * 0.5, 2);
-            ctx.fill();
-            
-            ctx.fillStyle = mushroom.color;
-            ctx.beginPath();
-            ctx.arc(mushroom.x, mushroom.y, mushroom.size * 0.4, Math.PI, 0);
-            ctx.fill();
-            
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            ctx.beginPath();
-            ctx.arc(mushroom.x - mushroom.size * 0.15, mushroom.y - mushroom.size * 0.15, mushroom.size * 0.08, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(mushroom.x + mushroom.size * 0.1, mushroom.y - mushroom.size * 0.25, mushroom.size * 0.06, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.restore();
-        });
-    }
-
-    drawFireflies() {
-        const ctx = this.ctx;
-        const time = performance.now() / 1000;
-        
-        this.fireflies.forEach(firefly => {
-            const glowIntensity = 0.3 + Math.sin(firefly.glowPhase) * 0.7;
-            
-            ctx.save();
-            ctx.globalAlpha = glowIntensity;
-            
-            const glowSize = firefly.size * (2 + Math.sin(firefly.glowPhase) * 1.5);
-            const gradient = ctx.createRadialGradient(
-                firefly.x, firefly.y, 0,
-                firefly.x, firefly.y, glowSize
-            );
-            gradient.addColorStop(0, JUNGLE_COLORS.FIREFLY + 'cc');
-            gradient.addColorStop(0.5, JUNGLE_COLORS.FIREFLY + '44');
-            gradient.addColorStop(1, JUNGLE_COLORS.FIREFLY + '00');
-            
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.arc(firefly.x, firefly.y, glowSize, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.fillStyle = '#fff';
-            ctx.beginPath();
-            ctx.arc(firefly.x, firefly.y, firefly.size * 0.5, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.restore();
-        });
-    }
-
-    drawFallingLeaves() {
-        const ctx = this.ctx;
-        const time = performance.now() / 1000;
-        
-        this.fallingLeaves.forEach(leaf => {
-            ctx.save();
-            
-            const swayX = Math.sin(leaf.phase) * leaf.swayAmplitude;
-            const drawX = leaf.x + swayX;
-            
-            ctx.translate(drawX, leaf.y);
-            ctx.rotate(leaf.rotation * Math.PI / 180);
-            ctx.globalAlpha = 0.4;
-            ctx.fillStyle = leaf.color;
-            
-            ctx.beginPath();
-            ctx.moveTo(0, -leaf.size / 2);
-            ctx.quadraticCurveTo(leaf.size / 2, 0, 0, leaf.size / 2);
-            ctx.quadraticCurveTo(-leaf.size / 2, 0, 0, -leaf.size / 2);
-            ctx.fill();
-            
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(0, -leaf.size / 3);
-            ctx.lineTo(0, leaf.size / 3);
-            ctx.stroke();
-            
-            ctx.restore();
-        });
     }
 
     drawGrid() {
         const ctx = this.ctx;
-        ctx.strokeStyle = 'rgba(74, 124, 89, 0.1)';
+        ctx.strokeStyle = 'rgba(74, 124, 89, 0.08)';
         ctx.lineWidth = 1;
         
         for (let x = 0; x <= this.gridWidth; x++) {
@@ -1014,7 +833,7 @@ class JungleSnakeGame extends GameInterface {
             const size = this.cellSize - padding * 2;
             
             const isHead = i === 0;
-            const segmentScale = isHead ? 1.0 : 0.85 - (i / this.snake.length) * 0.2;
+            const segmentScale = isHead ? 1.0 : 0.92 - (i / this.snake.length) * 0.12;
             const actualSize = size * segmentScale;
             const offset = (size - actualSize) / 2;
             
@@ -1040,15 +859,26 @@ class JungleSnakeGame extends GameInterface {
             const drawX = x + padding + offset;
             const drawY = y + padding + offset;
             
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.beginPath();
+            const shadowRadius = isHead ? actualSize / 2.2 : actualSize / 3;
+            ctx.roundRect(drawX + 2, drawY + 2, actualSize, actualSize, shadowRadius);
+            ctx.fill();
+            
             ctx.fillStyle = color;
             ctx.beginPath();
             const radius = isHead ? actualSize / 2.2 : actualSize / 3;
             ctx.roundRect(drawX, drawY, actualSize, actualSize, radius);
             ctx.fill();
             
-            ctx.fillStyle = 'rgba(255, 255, 255, ' + (isHead ? 0.25 : 0.15) + ')';
+            ctx.fillStyle = 'rgba(255, 255, 255, ' + (isHead ? 0.3 : 0.2) + ')';
             ctx.beginPath();
-            ctx.roundRect(drawX + 2, drawY + 2, actualSize / 2, actualSize / 3, actualSize / 6);
+            ctx.roundRect(drawX + 3, drawY + 3, actualSize / 2.5, actualSize / 3, actualSize / 8);
+            ctx.fill();
+            
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.beginPath();
+            ctx.roundRect(drawX + actualSize / 2, drawY + actualSize / 2, actualSize / 2.5, actualSize / 2.5, actualSize / 8);
             ctx.fill();
             
             if (isHead) {
@@ -1059,8 +889,8 @@ class JungleSnakeGame extends GameInterface {
 
     drawSnakeHead(x, y, size) {
         const ctx = this.ctx;
-        const eyeSize = size / 4.5;
-        const eyeOffset = size / 3.5;
+        const eyeSize = size / 4;
+        const eyeOffset = size / 3.2;
         const pupilSize = eyeSize / 2;
         const time = performance.now() / 1000;
         
@@ -1107,6 +937,14 @@ class JungleSnakeGame extends GameInterface {
         
         this.drawTongue(tongueX, tongueY, tongueDirX, tongueDirY, size, time);
         
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.beginPath();
+        ctx.arc(eyeX1 + 1, eyeY1 + 1, eyeSize, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(eyeX2 + 1, eyeY2 + 1, eyeSize, 0, Math.PI * 2);
+        ctx.fill();
+        
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.arc(eyeX1, eyeY1, eyeSize, 0, Math.PI * 2);
@@ -1118,8 +956,8 @@ class JungleSnakeGame extends GameInterface {
         ctx.fillStyle = '#1a1a2e';
         ctx.beginPath();
         ctx.arc(
-            eyeX1 + this.direction.x * pupilSize / 1.5,
-            eyeY1 + this.direction.y * pupilSize / 1.5,
+            eyeX1 + this.direction.x * pupilSize / 1.2,
+            eyeY1 + this.direction.y * pupilSize / 1.2,
             pupilSize,
             0,
             Math.PI * 2
@@ -1127,63 +965,109 @@ class JungleSnakeGame extends GameInterface {
         ctx.fill();
         ctx.beginPath();
         ctx.arc(
-            eyeX2 + this.direction.x * pupilSize / 1.5,
-            eyeY2 + this.direction.y * pupilSize / 1.5,
+            eyeX2 + this.direction.x * pupilSize / 1.2,
+            eyeY2 + this.direction.y * pupilSize / 1.2,
             pupilSize,
             0,
             Math.PI * 2
         );
         ctx.fill();
         
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
         ctx.beginPath();
-        ctx.arc(eyeX1 - eyeSize / 4, eyeY1 - eyeSize / 4, eyeSize / 4, 0, Math.PI * 2);
+        ctx.arc(eyeX1 - eyeSize / 3, eyeY1 - eyeSize / 3, eyeSize / 3, 0, Math.PI * 2);
         ctx.fill();
         ctx.beginPath();
-        ctx.arc(eyeX2 - eyeSize / 4, eyeY2 - eyeSize / 4, eyeSize / 4, 0, Math.PI * 2);
+        ctx.arc(eyeX2 - eyeSize / 3, eyeY2 - eyeSize / 3, eyeSize / 3, 0, Math.PI * 2);
         ctx.fill();
     }
 
     drawTongue(baseX, baseY, dirX, dirY, size, time) {
         const ctx = this.ctx;
-        const tongueLength = size * 0.6;
-        const tongueWidth = size * 0.2;
-        const flickAmount = Math.sin(time * 15) * tongueWidth * 0.3;
+        const tongueLength = size * 0.5;
+        const tongueWidth = size * 0.22;
+        const wiggle = Math.sin(time * 12) * tongueWidth * 0.25;
         
         const midX = baseX + dirX * tongueLength * 0.5;
         const midY = baseY + dirY * tongueLength * 0.5;
         const endX = baseX + dirX * tongueLength;
         const endY = baseY + dirY * tongueLength;
         
-        ctx.fillStyle = JUNGLE_COLORS.TONGUE_RED;
+        const forkLength = tongueLength * 0.35;
+        const forkSpread = tongueWidth * 0.7;
+        
+        const leftForkEndX = endX + dirX * forkLength - dirY * forkSpread;
+        const leftForkEndY = endY + dirY * forkLength + dirX * forkSpread;
+        
+        const rightForkEndX = endX + dirX * forkLength + dirY * forkSpread;
+        const rightForkEndY = endY + dirY * forkLength - dirX * forkSpread;
+        
         ctx.strokeStyle = JUNGLE_COLORS.TONGUE_DARK;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
         
         ctx.beginPath();
         ctx.moveTo(baseX - dirY * tongueWidth / 2, baseY - dirX * tongueWidth / 2);
-        ctx.lineTo(midX - dirY * tongueWidth / 3 + flickAmount, midY + dirX * tongueWidth / 3);
-        ctx.lineTo(endX - dirY * tongueWidth / 2, endY + dirX * tongueWidth / 4);
-        
-        const forkLength = tongueLength * 0.3;
-        const forkWidth = tongueWidth * 0.6;
-        
-        ctx.lineTo(endX + dirX * forkLength * 0.5 - dirY * forkWidth / 2, endY + dirY * forkLength * 0.5 + dirX * forkWidth / 2);
-        ctx.lineTo(endX + dirX * forkLength, endY + dirY * forkLength);
-        ctx.lineTo(endX + dirX * forkLength * 0.5 + dirY * forkWidth / 2, endY + dirY * forkLength * 0.5 - dirX * forkWidth / 2);
-        ctx.lineTo(endX + dirY * tongueWidth / 2, endY - dirX * tongueWidth / 4);
-        ctx.lineTo(midX + dirY * tongueWidth / 3 + flickAmount, midY - dirX * tongueWidth / 3);
-        ctx.lineTo(baseX + dirY * tongueWidth / 2, baseY + dirX * tongueWidth / 2);
+        ctx.quadraticCurveTo(
+            midX - dirY * tongueWidth / 3 + wiggle,
+            midY + dirX * tongueWidth / 3,
+            endX - dirY * tongueWidth / 2,
+            endY + dirX * tongueWidth / 4
+        );
+        ctx.quadraticCurveTo(
+            endX + dirX * forkLength * 0.3 - dirY * forkSpread * 0.5,
+            endY + dirY * forkLength * 0.3 + dirX * forkSpread * 0.5,
+            leftForkEndX,
+            leftForkEndY
+        );
+        ctx.quadraticCurveTo(
+            endX + dirX * forkLength * 0.5 - dirY * forkSpread * 0.3,
+            endY + dirY * forkLength * 0.5 + dirX * forkSpread * 0.3,
+            endX,
+            endY
+        );
+        ctx.quadraticCurveTo(
+            endX + dirX * forkLength * 0.5 + dirY * forkSpread * 0.3,
+            endY + dirY * forkLength * 0.5 - dirX * forkSpread * 0.3,
+            rightForkEndX,
+            rightForkEndY
+        );
+        ctx.quadraticCurveTo(
+            endX + dirX * forkLength * 0.3 + dirY * forkSpread * 0.5,
+            endY + dirY * forkLength * 0.3 - dirX * forkSpread * 0.5,
+            endX + dirY * tongueWidth / 2,
+            endY - dirX * tongueWidth / 4
+        );
+        ctx.quadraticCurveTo(
+            midX + dirY * tongueWidth / 3 + wiggle,
+            midY - dirX * tongueWidth / 3,
+            baseX + dirY * tongueWidth / 2,
+            baseY + dirX * tongueWidth / 2
+        );
         ctx.closePath();
+        
+        const tongueGradient = ctx.createLinearGradient(
+            baseX - dirY * tongueWidth,
+            baseY - dirX * tongueWidth,
+            baseX + dirX * tongueLength,
+            baseY + dirY * tongueLength
+        );
+        tongueGradient.addColorStop(0, JUNGLE_COLORS.TONGUE_PINK);
+        tongueGradient.addColorStop(0.5, JUNGLE_COLORS.TONGUE_RED);
+        tongueGradient.addColorStop(1, JUNGLE_COLORS.TONGUE_DARK);
+        
+        ctx.fillStyle = tongueGradient;
         ctx.fill();
         ctx.stroke();
         
-        ctx.fillStyle = 'rgba(255, 150, 150, 0.4)';
+        ctx.fillStyle = 'rgba(255, 200, 220, 0.5)';
         ctx.beginPath();
         ctx.ellipse(
-            baseX + dirX * tongueLength * 0.3 - dirY * tongueWidth * 0.1,
-            baseY + dirY * tongueLength * 0.3 + dirX * tongueWidth * 0.1,
-            tongueWidth * 0.2,
-            tongueLength * 0.15,
+            baseX + dirX * tongueLength * 0.25,
+            baseY + dirY * tongueLength * 0.25,
+            tongueWidth * 0.25,
+            tongueWidth * 0.15,
             Math.atan2(dirY, dirX),
             0,
             Math.PI * 2
@@ -1198,24 +1082,24 @@ class JungleSnakeGame extends GameInterface {
         const size = this.cellSize;
         const time = performance.now() / 1000;
         
-        const bounce = Math.sin(time * 3) * 4;
-        const rotation = Math.sin(time * 2) * 0.15;
-        const scale = 1 + Math.sin(time * 4) * 0.05;
+        const bounce = Math.sin(time * 2.5) * 3;
+        const rotation = Math.sin(time * 1.5) * 0.1;
+        const scale = 1 + Math.sin(time * 3) * 0.03;
         
         ctx.save();
         ctx.translate(x + size / 2, y + size / 2 + bounce);
         ctx.rotate(rotation);
         ctx.scale(scale, scale);
         
-        const glowRadius = size / 1.3;
+        const glowRadius = size / 1.2;
         const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, glowRadius);
-        gradient.addColorStop(0, this.foodType.color + '80');
-        gradient.addColorStop(0.5, this.foodType.color + '30');
+        gradient.addColorStop(0, this.foodType.color + '99');
+        gradient.addColorStop(0.5, this.foodType.color + '44');
         gradient.addColorStop(1, this.foodType.color + '00');
         ctx.fillStyle = gradient;
         ctx.fillRect(-glowRadius, -glowRadius, glowRadius * 2, glowRadius * 2);
         
-        ctx.font = size * 0.9 + 'px Arial';
+        ctx.font = size * 0.85 + 'px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(this.foodType.emoji, 0, 0);
@@ -1247,20 +1131,20 @@ class JungleSnakeGame extends GameInterface {
         ctx.fillRect(0, 0, width, height);
         
         ctx.fillStyle = JUNGLE_COLORS.TEXT_PRIMARY;
-        ctx.font = 'bold 28px "Segoe UI", sans-serif';
+        ctx.font = 'bold 26px "Segoe UI", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('准备开始...', width / 2, height / 2 - 100);
+        ctx.fillText('准备开始...', width / 2, height / 2 - 90);
         
-        const pulseScale = 1 + Math.sin(time * 6) * 0.1;
+        const pulseScale = 1 + Math.sin(time * 6) * 0.08;
         ctx.save();
         ctx.translate(width / 2, height / 2);
         ctx.scale(pulseScale, pulseScale);
         
-        ctx.font = 'bold 120px "Segoe UI", sans-serif';
+        ctx.font = 'bold 110px "Segoe UI", sans-serif';
         ctx.fillStyle = JUNGLE_COLORS.ACCENT_GOLD;
         ctx.shadowColor = JUNGLE_COLORS.ACCENT_GOLD;
-        ctx.shadowBlur = 30;
+        ctx.shadowBlur = 25;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
@@ -1270,31 +1154,30 @@ class JungleSnakeGame extends GameInterface {
         ctx.restore();
         
         ctx.shadowBlur = 0;
-        ctx.font = '18px "Segoe UI", sans-serif';
+        ctx.font = '16px "Segoe UI", sans-serif';
         ctx.fillStyle = JUNGLE_COLORS.TEXT_SECONDARY;
         ctx.textAlign = 'center';
-        ctx.fillText('使用方向键控制方向，空格键加速', width / 2, height / 2 + 80);
+        ctx.fillText('使用方向键控制方向，空格键加速', width / 2, height / 2 + 70);
     }
 
     drawPauseOverlay() {
         const ctx = this.ctx;
         const width = this.gameCanvas.width;
         const height = this.gameCanvas.height;
-        const time = performance.now() / 1000;
         
         ctx.fillStyle = 'rgba(13, 31, 20, 0.7)';
         ctx.fillRect(0, 0, width, height);
         
         ctx.fillStyle = JUNGLE_COLORS.TEXT_PRIMARY;
-        ctx.font = 'bold 52px "Segoe UI", sans-serif';
+        ctx.font = 'bold 48px "Segoe UI", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('⏸️ 游戏暂停', width / 2, height / 2 - 30);
+        ctx.fillText('⏸️ 游戏暂停', width / 2, height / 2 - 25);
         
-        ctx.font = '22px "Segoe UI", sans-serif';
+        ctx.font = '20px "Segoe UI", sans-serif';
         ctx.fillStyle = JUNGLE_COLORS.TEXT_SECONDARY;
         ctx.textAlign = 'center';
-        ctx.fillText('按 P 键继续游戏', width / 2, height / 2 + 30);
+        ctx.fillText('按 P 键继续游戏', width / 2, height / 2 + 25);
     }
 
     handleInput(eventType, event) {
@@ -1390,19 +1273,18 @@ class JungleSnakeGame extends GameInterface {
 
     updateSpeedIndicator() {
         const indicator = document.getElementById('speed-indicator');
-        const display = document.getElementById('speed-display');
         
-        if (indicator && display) {
+        if (indicator) {
             if (this.isBoosting) {
                 indicator.textContent = '🚀 加速中';
                 indicator.style.color = JUNGLE_COLORS.ACCENT_GOLD;
-                display.style.background = 'rgba(249, 202, 36, 0.25)';
-                display.style.border = '2px solid ' + JUNGLE_COLORS.ACCENT_GOLD;
+                indicator.parentElement.style.background = 'rgba(249, 202, 36, 0.15)';
+                indicator.parentElement.style.border = '1px solid rgba(249, 202, 36, 0.3)';
             } else {
                 indicator.textContent = '🐢 正常';
                 indicator.style.color = JUNGLE_COLORS.TEXT_PRIMARY;
-                display.style.background = 'rgba(0, 0, 0, 0.2)';
-                display.style.border = '2px solid transparent';
+                indicator.parentElement.style.background = 'rgba(0, 0, 0, 0.2)';
+                indicator.parentElement.style.border = 'none';
             }
         }
     }
