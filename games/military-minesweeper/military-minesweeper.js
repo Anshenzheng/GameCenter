@@ -46,7 +46,7 @@ class MilitaryMinesweeperGame extends GameInterface {
             icon: '💣',
             colors: {
                 primary: MILITARY_COLORS.ACCENT_RED,
-                secondary: MILITARY_COLORS.CAMO_GREEN_DARK
+                secondary: MILITARY_COLORS.ACCENT_GREEN
             }
         };
     }
@@ -108,26 +108,57 @@ class MilitaryMinesweeperGame extends GameInterface {
         this.canvas.style.cssText = `
             background: 
                 repeating-linear-gradient(
-                    45deg,
-                    transparent,
-                    transparent 10px,
-                    rgba(180, 170, 155, 0.3) 10px,
-                    rgba(180, 170, 155, 0.3) 20px
+                    90deg,
+                    transparent 0px,
+                    transparent 1px,
+                    rgba(100, 100, 100, 0.15) 1px,
+                    rgba(100, 100, 100, 0.15) 3px
                 ),
                 repeating-linear-gradient(
-                    -45deg,
-                    transparent,
-                    transparent 10px,
-                    rgba(170, 160, 145, 0.2) 10px,
-                    rgba(170, 160, 145, 0.2) 20px
+                    90deg,
+                    transparent 0px,
+                    transparent 8px,
+                    rgba(60, 60, 60, 0.25) 8px,
+                    rgba(60, 60, 60, 0.25) 10px
+                ),
+                repeating-linear-gradient(
+                    0deg,
+                    transparent 0px,
+                    transparent 20px,
+                    rgba(70, 70, 70, 0.08) 20px,
+                    rgba(70, 70, 70, 0.08) 22px
+                ),
+                radial-gradient(
+                    ellipse at 30% 20%,
+                    rgba(140, 140, 140, 0.15) 0%,
+                    transparent 50%
+                ),
+                radial-gradient(
+                    ellipse at 70% 80%,
+                    rgba(90, 90, 90, 0.15) 0%,
+                    transparent 50%
+                ),
+                radial-gradient(
+                    ellipse at 80% 30%,
+                    rgba(110, 110, 110, 0.1) 0%,
+                    transparent 40%
                 ),
                 linear-gradient(
-                    180deg,
-                    ${MILITARY_COLORS.BACKGROUND_LIGHT} 0%,
-                    #e8e0d8 30%,
-                    #ddd5c8 60%,
-                    ${MILITARY_COLORS.CAMO_SAND} 100%
+                    135deg,
+                    #3a3a3a 0%,
+                    #2d2d2d 25%,
+                    #353535 50%,
+                    #282828 75%,
+                    #303030 100%
                 );
+            background-size: 
+                10px 10px,
+                50px 50px,
+                100% 100%,
+                100% 100%,
+                100% 100%,
+                100% 100%,
+                100% 100%;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -218,6 +249,20 @@ class MilitaryMinesweeperGame extends GameInterface {
             font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
             position: relative;
             z-index: 10;
+            padding: 20px;
+            background: 
+                linear-gradient(
+                    135deg,
+                    rgba(80, 80, 80, 0.6) 0%,
+                    rgba(60, 60, 60, 0.6) 50%,
+                    rgba(70, 70, 70, 0.6) 100%
+                );
+            border: 2px solid rgba(100, 100, 100, 0.5);
+            border-radius: 8px;
+            box-shadow: 
+                0 4px 20px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.1);
         `;
 
         this.createHeader();
