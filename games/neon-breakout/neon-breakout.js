@@ -479,6 +479,16 @@ class NeonBreakoutGame extends GameInterface {
         this.keys.left = false;
         this.keys.right = false;
         
+        if (this.canvas) {
+            this.canvas.style.transform = '';
+        }
+        
+        this.useMouseControl = false;
+        if (this.gameCanvas) {
+            const canvasRect = this.gameCanvas.getBoundingClientRect();
+            this.mouseX = canvasRect.left + canvasRect.width / 2;
+        }
+        
         this.resetGame();
         this.startCountdown();
         this.gameLoop();
@@ -1292,58 +1302,96 @@ class NeonBreakoutGame extends GameInterface {
 
     drawCrackPattern(ctx, brick, damageProgress) {
         const crackIntensity = Math.min(damageProgress * 3, 1);
-        const centerX = brick.x + brick.width / 2;
-        const centerY = brick.y + brick.height / 2;
+        const seed = brick.row * 1000 + brick.col;
         
         ctx.save();
         
-        ctx.strokeStyle = `rgba(0, 0, 0, ${0.4 + crackIntensity * 0.4})`;
-        ctx.lineWidth = 1 + crackIntensity * 2;
+        ctx.strokeStyle = `rgba(0, 0, 0, ${0.3 + crackIntensity * 0.3})`;
+        ctx.lineWidth = 0.5 + crackIntensity * 0.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         
-        const seed = brick.row * 100 + brick.col;
         const cracks = [];
+        const numMainCracks = Math.floor(1 + crackIntensity * 3);
         
-        const numCracks = Math.floor(3 + crackIntensity * 5);
-        
-        for (let i = 0; i < numCracks; i++) {
-            const angle = (Math.PI * 2 / numCracks) * i + this.pseudoRandom(seed + i) * 0.5;
-            const startX = centerX + Math.cos(angle) * brick.width * 0.1;
-            const startY = centerY + Math.sin(angle) * brick.height * 0.1;
+        for (let i = 0; i < numMainCracks; i++) {
+            const startXRand = this.pseudoRandom(seed + i * 100);
+            const startYRand = this.pseudoRandom(seed + i * 100 + 1);
+            
+            let startX, startY;
+            
+            if (startXRand < 0.25) {
+                startX = brick.x + startYRand * brick.width;
+                startY = brick.y;
+            } else if (startXRand < 0.5) {
+                startX = brick.x + startYRand * brick.width;
+                startY = brick.y + brick.height;
+            } else if (startXRand < 0.75) {
+                startX = brick.x;
+                startY = brick.y + startYRand * brick.height;
+            } else {
+                startX = brick.x + brick.width;
+                startY = brick.y + startYRand * brick.height;
+            }
+            
+            const baseAngle = this.pseudoRandom(seed + i * 200) * Math.PI;
             
             const crack = [];
             let currentX = startX;
             let currentY = startY;
-            let currentAngle = angle;
+            let currentAngle = baseAngle;
             
             crack.push({ x: currentX, y: currentY });
             
-            const segments = Math.floor(2 + crackIntensity * 3);
+            const segments = Math.floor(3 + crackIntensity * 5);
             for (let j = 0; j < segments; j++) {
-                const segmentLength = (brick.width * 0.3 + this.pseudoRandom(seed + i * 10 + j) * brick.width * 0.2) * crackIntensity;
-                currentAngle += (this.pseudoRandom(seed + i * 20 + j) - 0.5) * 0.8;
+                const segmentLength = brick.width * (0.15 + this.pseudoRandom(seed + i * 300 + j) * 0.2) * crackIntensity;
+                currentAngle += (this.pseudoRandom(seed + i * 400 + j) - 0.5) * 1.2;
                 
                 currentX += Math.cos(currentAngle) * segmentLength;
                 currentY += Math.sin(currentAngle) * segmentLength;
                 
-                currentX = Math.max(brick.x, Math.min(brick.x + brick.width, currentX));
-                currentY = Math.max(brick.y, Math.min(brick.y + brick.height, currentY));
-                
-                crack.push({ x: currentX, y: currentY });
-                
-                if (currentX <= brick.x || currentX >= brick.x + brick.width ||
-                    currentY <= brick.y || currentY >= brick.y + brick.height) {
+                if (currentX < brick.x || currentX > brick.x + brick.width ||
+                    currentY < brick.y || currentY > brick.y + brick.height) {
+                    currentX = Math.max(brick.x, Math.min(brick.x + brick.width, currentX));
+                    currentY = Math.max(brick.y, Math.min(brick.y + brick.height, currentY));
+                    crack.push({ x: currentX, y: currentY });
                     break;
                 }
+                
+                crack.push({ x: currentX, y: currentY });
             }
             
-            cracks.push(crack);
+            cracks.push({
+                points: crack,
+                hasBranches: crackIntensity > 0.4 && this.pseudoRandom(seed + i * 500) > 0.5
+            });
         }
         
-        cracks.forEach((crack, crackIndex) => {
+        if (crackIntensity > 0.3) {
+            const numSmallCracks = Math.floor(crackIntensity * 8);
+            for (let i = 0; i < numSmallCracks; i++) {
+                const startX = brick.x + this.pseudoRandom(seed + i * 600 + 1000) * brick.width;
+                const startY = brick.y + this.pseudoRandom(seed + i * 600 + 1001) * brick.height;
+                const angle = this.pseudoRandom(seed + i * 600 + 1002) * Math.PI * 2;
+                const length = brick.width * (0.05 + this.pseudoRandom(seed + i * 600 + 1003) * 0.1) * crackIntensity;
+                
+                const endX = startX + Math.cos(angle) * length;
+                const endY = startY + Math.sin(angle) * length;
+                
+                ctx.lineWidth = 0.3 + crackIntensity * 0.3;
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+            }
+        }
+        
+        cracks.forEach((crackData, crackIndex) => {
+            const crack = crackData.points;
             if (crack.length < 2) return;
             
+            ctx.lineWidth = 0.5 + crackIntensity * 0.5;
             ctx.beginPath();
             ctx.moveTo(crack[0].x, crack[0].y);
             
@@ -1352,17 +1400,24 @@ class NeonBreakoutGame extends GameInterface {
             }
             ctx.stroke();
             
-            if (crackIntensity > 0.5) {
+            if (crackData.hasBranches && crack.length > 2) {
                 for (let i = 1; i < crack.length - 1; i++) {
-                    if (this.pseudoRandom(seed + crackIndex * 50 + i) > 0.6) {
-                        const branchAngle = this.pseudoRandom(seed + crackIndex * 100 + i) * Math.PI * 2;
-                        const branchLength = brick.width * 0.15 * crackIntensity;
+                    if (this.pseudoRandom(seed + crackIndex * 700 + i) > 0.4) {
+                        const branchAngle = this.pseudoRandom(seed + crackIndex * 800 + i) * Math.PI * 0.8 - Math.PI * 0.4;
+                        const baseAngle = Math.atan2(
+                            crack[i + 1].y - crack[i - 1].y,
+                            crack[i + 1].x - crack[i - 1].x
+                        );
+                        const finalAngle = baseAngle + branchAngle;
                         
+                        const branchLength = brick.width * (0.08 + this.pseudoRandom(seed + crackIndex * 900 + i) * 0.12) * crackIntensity;
+                        
+                        ctx.lineWidth = 0.3 + crackIntensity * 0.2;
                         ctx.beginPath();
                         ctx.moveTo(crack[i].x, crack[i].y);
                         ctx.lineTo(
-                            crack[i].x + Math.cos(branchAngle) * branchLength,
-                            crack[i].y + Math.sin(branchAngle) * branchLength
+                            crack[i].x + Math.cos(finalAngle) * branchLength,
+                            crack[i].y + Math.sin(finalAngle) * branchLength
                         );
                         ctx.stroke();
                     }
@@ -1370,16 +1425,19 @@ class NeonBreakoutGame extends GameInterface {
             }
         });
         
-        if (crackIntensity > 0.7) {
-            ctx.fillStyle = `rgba(0, 0, 0, ${crackIntensity * 0.15})`;
+        if (crackIntensity > 0.6) {
+            ctx.fillStyle = `rgba(0, 0, 0, ${crackIntensity * 0.12})`;
             
-            for (let i = 0; i < 3; i++) {
-                const chipX = centerX + (this.pseudoRandom(seed + 1000 + i) - 0.5) * brick.width * 0.6;
-                const chipY = centerY + (this.pseudoRandom(seed + 2000 + i) - 0.5) * brick.height * 0.6;
-                const chipSize = (3 + this.pseudoRandom(seed + 3000 + i) * 5) * crackIntensity;
+            for (let i = 0; i < Math.floor(crackIntensity * 4); i++) {
+                const chipX = brick.x + this.pseudoRandom(seed + i * 1000 + 2000) * brick.width;
+                const chipY = brick.y + this.pseudoRandom(seed + i * 1000 + 2001) * brick.height;
+                const chipSize = (1 + this.pseudoRandom(seed + i * 1000 + 2002) * 3) * crackIntensity;
                 
                 ctx.beginPath();
-                ctx.arc(chipX, chipY, chipSize, 0, Math.PI * 2);
+                ctx.moveTo(chipX, chipY - chipSize);
+                ctx.lineTo(chipX + chipSize * 0.7, chipY + chipSize * 0.5);
+                ctx.lineTo(chipX - chipSize * 0.7, chipY + chipSize * 0.5);
+                ctx.closePath();
                 ctx.fill();
             }
         }
