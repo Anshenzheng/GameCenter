@@ -182,7 +182,7 @@ class NeonBreakoutGame extends GameInterface {
             justify-content: center;
             padding: 10px;
             overflow: hidden;
-            gap: 15px;
+            gap: 20px;
             position: relative;
         `;
 
@@ -233,17 +233,15 @@ class NeonBreakoutGame extends GameInterface {
             display: flex;
             flex-direction: column;
             gap: 12px;
-            width: 200px;
-            min-width: 200px;
+            width: 180px;
+            min-width: 180px;
             flex-shrink: 0;
             font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
             z-index: 2;
             max-height: 100%;
-            overflow-y: auto;
         `;
 
         this.createHUD();
-        this.createControls();
 
         this.gameContainer = document.createElement('div');
         this.gameContainer.className = 'game-container';
@@ -264,8 +262,25 @@ class NeonBreakoutGame extends GameInterface {
         this.scanline.className = 'scanline';
         this.gameContainer.appendChild(this.scanline);
 
+        this.rightPanel = document.createElement('div');
+        this.rightPanel.className = 'right-panel';
+        this.rightPanel.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 180px;
+            min-width: 180px;
+            flex-shrink: 0;
+            font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+            z-index: 2;
+            max-height: 100%;
+        `;
+
+        this.createControls();
+
         this.canvas.appendChild(this.leftPanel);
         this.canvas.appendChild(this.gameContainer);
+        this.canvas.appendChild(this.rightPanel);
     }
 
     createHUD() {
@@ -417,7 +432,7 @@ class NeonBreakoutGame extends GameInterface {
         tip.innerHTML = '💡 <strong>小提示：</strong>收集掉落的道具获得特殊能力！球速会随时间增加，保持专注！';
         controls.appendChild(tip);
 
-        this.leftPanel.appendChild(controls);
+        this.rightPanel.appendChild(controls);
     }
 
     createGameCanvas() {
@@ -460,6 +475,9 @@ class NeonBreakoutGame extends GameInterface {
         this.updateScore(0);
         this.updateLivesDisplay();
         this.updateLevelDisplay();
+        
+        this.keys.left = false;
+        this.keys.right = false;
         
         this.resetGame();
         this.startCountdown();
@@ -1012,6 +1030,11 @@ class NeonBreakoutGame extends GameInterface {
         if (this.lives <= 0) {
             this.gameOver();
         } else {
+            this.ball.speedMultiplier = 1;
+            this.ball.currentSpeed = this.ball.baseSpeed;
+            this.lastSpeedIncrease = performance.now();
+            this.updateSpeedDisplay();
+            
             this.resetBallAndPaddle();
             this.ballAttached = true;
             this.isWaiting = true;
@@ -1260,17 +1283,113 @@ class NeonBreakoutGame extends GameInterface {
             }
             
             if (damageProgress > 0) {
-                ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(brick.x + brick.width * 0.3, brick.y);
-                ctx.lineTo(brick.x + brick.width * 0.5, brick.y + brick.height * 0.5);
-                ctx.lineTo(brick.x + brick.width * 0.7, brick.y + brick.height);
-                ctx.stroke();
+                this.drawCrackPattern(ctx, brick, damageProgress);
             }
             
             ctx.shadowBlur = 0;
         });
+    }
+
+    drawCrackPattern(ctx, brick, damageProgress) {
+        const crackIntensity = Math.min(damageProgress * 3, 1);
+        const centerX = brick.x + brick.width / 2;
+        const centerY = brick.y + brick.height / 2;
+        
+        ctx.save();
+        
+        ctx.strokeStyle = `rgba(0, 0, 0, ${0.4 + crackIntensity * 0.4})`;
+        ctx.lineWidth = 1 + crackIntensity * 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        
+        const seed = brick.row * 100 + brick.col;
+        const cracks = [];
+        
+        const numCracks = Math.floor(3 + crackIntensity * 5);
+        
+        for (let i = 0; i < numCracks; i++) {
+            const angle = (Math.PI * 2 / numCracks) * i + this.pseudoRandom(seed + i) * 0.5;
+            const startX = centerX + Math.cos(angle) * brick.width * 0.1;
+            const startY = centerY + Math.sin(angle) * brick.height * 0.1;
+            
+            const crack = [];
+            let currentX = startX;
+            let currentY = startY;
+            let currentAngle = angle;
+            
+            crack.push({ x: currentX, y: currentY });
+            
+            const segments = Math.floor(2 + crackIntensity * 3);
+            for (let j = 0; j < segments; j++) {
+                const segmentLength = (brick.width * 0.3 + this.pseudoRandom(seed + i * 10 + j) * brick.width * 0.2) * crackIntensity;
+                currentAngle += (this.pseudoRandom(seed + i * 20 + j) - 0.5) * 0.8;
+                
+                currentX += Math.cos(currentAngle) * segmentLength;
+                currentY += Math.sin(currentAngle) * segmentLength;
+                
+                currentX = Math.max(brick.x, Math.min(brick.x + brick.width, currentX));
+                currentY = Math.max(brick.y, Math.min(brick.y + brick.height, currentY));
+                
+                crack.push({ x: currentX, y: currentY });
+                
+                if (currentX <= brick.x || currentX >= brick.x + brick.width ||
+                    currentY <= brick.y || currentY >= brick.y + brick.height) {
+                    break;
+                }
+            }
+            
+            cracks.push(crack);
+        }
+        
+        cracks.forEach((crack, crackIndex) => {
+            if (crack.length < 2) return;
+            
+            ctx.beginPath();
+            ctx.moveTo(crack[0].x, crack[0].y);
+            
+            for (let i = 1; i < crack.length; i++) {
+                ctx.lineTo(crack[i].x, crack[i].y);
+            }
+            ctx.stroke();
+            
+            if (crackIntensity > 0.5) {
+                for (let i = 1; i < crack.length - 1; i++) {
+                    if (this.pseudoRandom(seed + crackIndex * 50 + i) > 0.6) {
+                        const branchAngle = this.pseudoRandom(seed + crackIndex * 100 + i) * Math.PI * 2;
+                        const branchLength = brick.width * 0.15 * crackIntensity;
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(crack[i].x, crack[i].y);
+                        ctx.lineTo(
+                            crack[i].x + Math.cos(branchAngle) * branchLength,
+                            crack[i].y + Math.sin(branchAngle) * branchLength
+                        );
+                        ctx.stroke();
+                    }
+                }
+            }
+        });
+        
+        if (crackIntensity > 0.7) {
+            ctx.fillStyle = `rgba(0, 0, 0, ${crackIntensity * 0.15})`;
+            
+            for (let i = 0; i < 3; i++) {
+                const chipX = centerX + (this.pseudoRandom(seed + 1000 + i) - 0.5) * brick.width * 0.6;
+                const chipY = centerY + (this.pseudoRandom(seed + 2000 + i) - 0.5) * brick.height * 0.6;
+                const chipSize = (3 + this.pseudoRandom(seed + 3000 + i) * 5) * crackIntensity;
+                
+                ctx.beginPath();
+                ctx.arc(chipX, chipY, chipSize, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        ctx.restore();
+    }
+
+    pseudoRandom(seed) {
+        const x = Math.sin(seed) * 10000;
+        return x - Math.floor(x);
     }
 
     drawPaddle() {
