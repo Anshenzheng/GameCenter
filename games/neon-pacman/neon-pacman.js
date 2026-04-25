@@ -563,13 +563,13 @@ class NeonPacmanGame extends GameInterface {
 
     initPacman() {
         this.pacman = {
-            x: 10 * CELL_SIZE,
-            y: 15 * CELL_SIZE,
+            x: 10 * CELL_SIZE + CELL_SIZE / 2,
+            y: 15 * CELL_SIZE + CELL_SIZE / 2,
             tileX: 10,
             tileY: 15,
             direction: DIRECTIONS.RIGHT,
             nextDirection: DIRECTIONS.RIGHT,
-            mouthAngle: 0,
+            mouthAngle: 0.25,
             mouthDirection: 1,
             speed: 2.0,
             moving: false
@@ -589,8 +589,8 @@ class NeonPacmanGame extends GameInterface {
         for (let i = 0; i < Math.min(config.ghostCount, positions.length); i++) {
             const pos = positions[i];
             this.ghosts.push({
-                x: pos.tileX * CELL_SIZE,
-                y: pos.tileY * CELL_SIZE,
+                x: pos.tileX * CELL_SIZE + CELL_SIZE / 2,
+                y: pos.tileY * CELL_SIZE + CELL_SIZE / 2,
                 tileX: pos.tileX,
                 tileY: pos.tileY,
                 direction: DIRECTIONS.UP,
@@ -664,7 +664,7 @@ class NeonPacmanGame extends GameInterface {
         const moveTileX = pacman.tileX + pacman.direction.x;
         const moveTileY = pacman.tileY + pacman.direction.y;
         
-        const atTileCenter = this.isAtTileCenter(pacman.x, pacman.y, pacman.direction);
+        const atTileCenter = this.isAtTileCenter(pacman.x, pacman.y, pacman.tileX, pacman.tileY, pacman.direction);
         
         if (atTileCenter) {
             if (this.canMoveTo(moveTileX, moveTileY)) {
@@ -685,9 +685,9 @@ class NeonPacmanGame extends GameInterface {
             pacman.y += pacman.direction.y * pacman.speed;
             
             pacman.mouthAngle += pacman.mouthDirection * 0.15;
-            if (pacman.mouthAngle >= 0.3) {
+            if (pacman.mouthAngle >= 0.4) {
                 pacman.mouthDirection = -1;
-            } else if (pacman.mouthAngle <= 0) {
+            } else if (pacman.mouthAngle <= 0.1) {
                 pacman.mouthDirection = 1;
             }
         }
@@ -707,9 +707,9 @@ class NeonPacmanGame extends GameInterface {
         }
     }
 
-    isAtTileCenter(x, y, direction) {
-        const tileCenterX = this.pacman.tileX * CELL_SIZE + CELL_SIZE / 2;
-        const tileCenterY = this.pacman.tileY * CELL_SIZE + CELL_SIZE / 2;
+    isAtTileCenter(x, y, tileX, tileY, direction) {
+        const tileCenterX = tileX * CELL_SIZE + CELL_SIZE / 2;
+        const tileCenterY = tileY * CELL_SIZE + CELL_SIZE / 2;
         
         const threshold = 2;
         
@@ -721,8 +721,12 @@ class NeonPacmanGame extends GameInterface {
     }
 
     canMoveTo(tileX, tileY) {
-        if (tileX < 0 || tileX >= COLS || tileY < 0 || tileY >= ROWS) {
+        if (tileY < 0 || tileY >= ROWS) {
             return false;
+        }
+        
+        if (tileX < 0 || tileX >= COLS) {
+            return true;
         }
         
         const tile = this.maze[tileY][tileX];
@@ -823,7 +827,7 @@ class NeonPacmanGame extends GameInterface {
     }
 
     moveGhost(ghost) {
-        const atTileCenter = this.isAtTileCenter(ghost.x, ghost.y, ghost.direction);
+        const atTileCenter = this.isAtTileCenter(ghost.x, ghost.y, ghost.tileX, ghost.tileY, ghost.direction);
         
         if (atTileCenter) {
             const newDirection = this.getGhostDirection(ghost);
@@ -1434,8 +1438,8 @@ class NeonPacmanGame extends GameInterface {
     drawPacman() {
         const ctx = this.ctx;
         const pacman = this.pacman;
-        const x = pacman.x + CELL_SIZE / 2;
-        const y = pacman.y + CELL_SIZE / 2;
+        const x = pacman.x;
+        const y = pacman.y;
         const radius = CELL_SIZE / 2 - 2;
         
         let startAngle = 0;
@@ -1473,8 +1477,8 @@ class NeonPacmanGame extends GameInterface {
         const time = performance.now() / 1000;
         
         this.ghosts.forEach(ghost => {
-            const x = ghost.x + CELL_SIZE / 2;
-            const y = ghost.y + CELL_SIZE / 2;
+            const x = ghost.x;
+            const y = ghost.y;
             
             if (ghost.eaten) {
                 this.drawEyes(ctx, x, y);
@@ -1616,23 +1620,21 @@ class NeonPacmanGame extends GameInterface {
     }
 
     handleInput(eventType, event) {
-        if (eventType !== 'keydown') return;
-        
         const key = event.key.toLowerCase();
         
         if (key === 'arrowup' || key === 'w') {
-            this.keys.up = true;
+            this.keys.up = eventType === 'keydown';
             event.preventDefault();
         } else if (key === 'arrowdown' || key === 's') {
-            this.keys.down = true;
+            this.keys.down = eventType === 'keydown';
             event.preventDefault();
         } else if (key === 'arrowleft' || key === 'a') {
-            this.keys.left = true;
+            this.keys.left = eventType === 'keydown';
             event.preventDefault();
         } else if (key === 'arrowright' || key === 'd') {
-            this.keys.right = true;
+            this.keys.right = eventType === 'keydown';
             event.preventDefault();
-        } else if (key === 'p') {
+        } else if (key === 'p' && eventType === 'keydown') {
             if (this.isPaused) {
                 this.resume();
             } else {
