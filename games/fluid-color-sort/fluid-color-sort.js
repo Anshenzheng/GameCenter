@@ -3,6 +3,7 @@
  * 精致的玻璃试管质感，带高光和折射
  * 流体动效、晃动感、水面波荡
  * 多巴胺配色
+ * 瓶子移动倾斜动画，相同颜色液体自动合并
  */
 
 const FLUID_COLORS = {
@@ -26,29 +27,10 @@ const FLUID_COLORS = {
     accent: '#818cf8',
 };
 
-class LiquidParticle {
-    constructor(x, y, size, color) {
-        this.x = x;
-        this.y = y;
-        this.size = size;
+class LiquidLayer {
+    constructor(color, volume = 1) {
         this.color = color;
-        this.vx = 0;
-        this.vy = 0;
-        this.wobblePhase = Math.random() * Math.PI * 2;
-        this.wobbleSpeed = 0.02 + Math.random() * 0.03;
-        this.wobbleAmplitude = 0.5 + Math.random() * 1.5;
-    }
-
-    update(deltaTime) {
-        this.wobblePhase += this.wobbleSpeed * (deltaTime / 16);
-    }
-
-    getWobbleX() {
-        return Math.sin(this.wobblePhase) * this.wobbleAmplitude;
-    }
-
-    getWobbleY() {
-        return Math.cos(this.wobblePhase * 0.7) * this.wobbleAmplitude * 0.5;
+        this.volume = volume;
     }
 }
 
@@ -59,9 +41,24 @@ class Tube {
         this.width = width;
         this.height = height;
         this.index = index;
-        this.liquids = [];
-        this.maxLiquids = 4;
-        this.liquidHeight = height * 0.2;
+
+        this.currentX = x;
+        this.currentY = y;
+        this.originalX = x;
+        this.originalY = y;
+
+        this.rotation = 0;
+        this.targetRotation = 0;
+        this.targetX = x;
+        this.targetY = y;
+
+        this.isAnimating = false;
+        this.animationPhase = 'idle';
+
+        this.liquidLayers = [];
+        this.maxTotalVolume = 4;
+        this.singleLayerHeight = height * 0.2;
+
         this.isSelected = false;
         this.isHovered = false;
         this.shakeOffset = 0;
@@ -69,70 +66,115 @@ class Tube {
         this.shakeDecay = 0.95;
         this.wobbleTime = Math.random() * 1000;
         this.splashParticles = [];
-        this.pouringFrom = null;
-        this.pouringTo = null;
-        this.pourProgress = 0;
-        this.pourSpeed = 0.03;
         this.recentlyAdded = null;
         this.addAnimationTime = 0;
         this.glassHighlight = Math.random() * 0.3 + 0.7;
+        this.tiltLiquidOffset = 0;
     }
 
-    addLiquid(color, animate = true) {
-        if (this.liquids.length < this.maxLiquids) {
-            this.liquids.push(color);
-            if (animate) {
-                this.recentlyAdded = color;
-                this.addAnimationTime = 0;
-                this.triggerSplash();
-            }
-            return true;
-        }
-        return false;
+    getTotalVolume() {
+        return this.liquidLayers.reduce((sum, layer) => sum + layer.volume, 0);
     }
 
-    removeLiquid() {
-        if (this.liquids.length > 0) {
-            return this.liquids.pop();
-        }
-        return null;
+    getTopColor() {
+        if (this.liquidLayers.length === 0) return null;
+        return this.liquidLayers[this.liquidLayers.length - 1].color;
     }
 
-    getTopLiquid() {
-        if (this.liquids.length > 0) {
-            return this.liquids[this.liquids.length - 1];
-        }
-        return null;
+    getTopVolume() {
+        if (this.liquidLayers.length === 0) return 0;
+        return this.liquidLayers[this.liquidLayers.length - 1].volume;
     }
 
     canReceive(color) {
-        if (this.liquids.length === 0) return true;
-        if (this.liquids.length >= this.maxLiquids) return false;
-        return this.getTopLiquid() === color;
+        if (this.getTotalVolume() >= this.maxTotalVolume) return false;
+        if (this.liquidLayers.length === 0) return true;
+        return this.getTopColor() === color;
+    }
+
+    addLiquid(color, volume = 1, animate = true) {
+        const currentVolume = this.getTotalVolume();
+        if (currentVolume + volume > this.maxTotalVolume) {
+            const available = this.maxTotalVolume - currentVolume;
+            if (available <= 0) return 0;
+            volume = available;
+        }
+
+        if (this.liquidLayers.length > 0 && this.getTopColor() === color) {
+            this.liquidLayers[this.liquidLayers.length - 1].volume += volume;
+        } else {
+            this.liquidLayers.push(new LiquidLayer(color, volume));
+        }
+
+        if (animate) {
+            this.recentlyAdded = color;
+            this.addAnimationTime = 0;
+            this.triggerSplash();
+        }
+
+        return volume;
+    }
+
+    removeTopLiquid(volume = 1) {
+        if (this.liquidLayers.length === 0) return { color: null, volume: 0 };
+
+        const topLayer = this.liquidLayers[this.liquidLayers.length - 1];
+        const removeVolume = Math.min(volume, topLayer.volume);
+
+        topLayer.volume -= removeVolume;
+
+        if (topLayer.volume <= 0) {
+            this.liquidLayers.pop();
+        }
+
+        return { color: topLayer.color, volume: removeVolume };
     }
 
     isEmpty() {
-        return this.liquids.length === 0;
+        return this.liquidLayers.length === 0;
     }
 
     isComplete() {
-        if (this.liquids.length === 0) return true;
-        if (this.liquids.length < this.maxLiquids) return false;
-        const color = this.liquids[0];
-        return this.liquids.every(l => l === color);
+        if (this.liquidLayers.length === 0) return true;
+        if (this.getTotalVolume() < this.maxTotalVolume) return false;
+        if (this.liquidLayers.length > 1) return false;
+        return true;
+    }
+
+    moveTo(targetX, targetY, immediate = false) {
+        this.targetX = targetX;
+        this.targetY = targetY;
+        if (immediate) {
+            this.currentX = targetX;
+            this.currentY = targetY;
+        }
+    }
+
+    rotateTo(angle, immediate = false) {
+        this.targetRotation = angle;
+        if (immediate) {
+            this.rotation = angle;
+        }
+    }
+
+    resetPosition() {
+        this.targetX = this.originalX;
+        this.targetY = this.originalY;
+        this.targetRotation = 0;
     }
 
     triggerSplash() {
+        const totalVolume = this.getTotalVolume();
         for (let i = 0; i < 8; i++) {
             const angle = Math.random() * Math.PI;
             const speed = 2 + Math.random() * 4;
             this.splashParticles.push({
                 x: this.width / 2,
-                y: this.height - (this.liquids.length * this.liquidHeight),
+                y: this.height - (totalVolume * this.singleLayerHeight),
                 vx: Math.cos(angle) * speed * (Math.random() > 0.5 ? 1 : -1),
                 vy: -Math.sin(angle) * speed - 2,
                 size: 2 + Math.random() * 4,
-                color: this.getTopLiquid(),
+                color: this.getTopColor(),
                 life: 1,
                 gravity: 0.15
             });
@@ -146,6 +188,21 @@ class Tube {
     update(deltaTime) {
         const dt = deltaTime / 16;
         this.wobbleTime += deltaTime * 0.002;
+
+        const moveSpeed = 0.08;
+        this.currentX += (this.targetX - this.currentX) * moveSpeed * dt;
+        this.currentY += (this.targetY - this.currentY) * moveSpeed * dt;
+
+        const rotateSpeed = 0.06;
+        this.rotation += (this.targetRotation - this.rotation) * rotateSpeed * dt;
+
+        if (this.rotation !== 0) {
+            const maxTilt = 45 * Math.PI / 180;
+            const tiltProgress = Math.abs(this.rotation) / maxTilt;
+            this.tiltLiquidOffset = tiltProgress * 15;
+        } else {
+            this.tiltLiquidOffset *= 0.9;
+        }
 
         if (this.shakeOffset !== 0) {
             this.shakeOffset *= this.shakeDecay;
@@ -170,26 +227,40 @@ class Tube {
     draw(ctx) {
         ctx.save();
 
-        const actualX = this.x + this.shakeOffset;
+        const centerX = this.currentX + this.width / 2;
+        const centerY = this.currentY + this.height * 0.8;
+
+        ctx.translate(centerX, centerY);
+        ctx.rotate(this.rotation);
+        ctx.translate(-centerX, -centerY);
+
+        const actualX = this.currentX + this.shakeOffset;
 
         ctx.beginPath();
-        this.drawTubeShape(ctx, actualX, this.y);
+        this.drawTubeShape(ctx, actualX, this.currentY);
         ctx.clip();
 
-        this.drawLiquids(ctx, actualX, this.y);
-        this.drawSplashParticles(ctx, actualX, this.y);
+        this.drawLiquids(ctx, actualX, this.currentY);
+        this.drawSplashParticles(ctx, actualX, this.currentY);
 
         ctx.restore();
 
-        this.drawTubeGlass(ctx, actualX, this.y);
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(this.rotation);
+        ctx.translate(-centerX, -centerY);
+
+        this.drawTubeGlass(ctx, actualX, this.currentY);
 
         if (this.isSelected) {
-            this.drawSelectionGlow(ctx, actualX, this.y);
+            this.drawSelectionGlow(ctx, actualX, this.currentY);
         }
 
         if (this.isHovered && !this.isSelected) {
-            this.drawHoverEffect(ctx, actualX, this.y);
+            this.drawHoverEffect(ctx, actualX, this.currentY);
         }
+
+        ctx.restore();
     }
 
     drawTubeShape(ctx, x, y) {
@@ -266,46 +337,47 @@ class Tube {
     }
 
     drawLiquids(ctx, x, y) {
-        if (this.liquids.length === 0) return;
+        if (this.liquidLayers.length === 0) return;
 
-        for (let i = 0; i < this.liquids.length; i++) {
-            const color = this.liquids[i];
-            const isTop = i === this.liquids.length - 1;
+        let currentY = y + this.height;
+        const tiltDirection = this.rotation > 0 ? 1 : -1;
+        const tiltOffsetX = this.tiltLiquidOffset * tiltDirection;
+
+        for (let i = 0; i < this.liquidLayers.length; i++) {
+            const layer = this.liquidLayers[i];
+            const layerHeight = layer.volume * this.singleLayerHeight;
+            const isTop = i === this.liquidLayers.length - 1;
             const isRecentlyAdded = isTop && this.recentlyAdded && this.addAnimationTime < 1;
 
-            const baseY = y + this.height - (i + 1) * this.liquidHeight;
-            const layerHeight = this.liquidHeight;
+            currentY -= layerHeight;
 
-            const wobbleOffset = Math.sin(this.wobbleTime * 2 + i) * 2;
-            const layerWobble = isTop ? wobbleOffset * 1.5 : wobbleOffset * 0.5;
-
-            let actualY = baseY + layerWobble;
-            let actualHeight = layerHeight;
+            let actualY = currentY;
+            let layerWobble = Math.sin(this.wobbleTime * 2 + i) * (isTop ? 1.5 : 0.5);
 
             if (isRecentlyAdded) {
                 const bounceEase = 1 - Math.pow(1 - this.addAnimationTime, 3);
-                actualY = baseY + (1 - bounceEase) * 30;
+                actualY = currentY + (1 - bounceEase) * 30;
             }
 
-            this.drawLiquidLayer(ctx, x, actualY, actualHeight, color, isTop, i);
+            this.drawLiquidLayer(ctx, x, actualY, layerHeight, layer.color, isTop, i, tiltOffsetX, layerWobble);
         }
     }
 
-    drawLiquidLayer(ctx, x, y, height, color, isTop, layerIndex) {
+    drawLiquidLayer(ctx, x, y, height, color, isTop, layerIndex, tiltOffsetX = 0, layerWobble = 0) {
         ctx.save();
 
         const topWobble = isTop ? Math.sin(this.wobbleTime * 3) * 3 : 0;
         const bottomWobble = Math.sin(this.wobbleTime * 2.5 + 1) * 2;
 
         ctx.beginPath();
-        
+
         const points = [];
         const segments = 20;
         for (let i = 0; i <= segments; i++) {
             const t = i / segments;
-            const px = x + t * this.width;
+            const px = x + t * this.width + tiltOffsetX * t;
             const waveOffset = Math.sin(t * Math.PI * 2 + this.wobbleTime * 2) * (isTop ? 2 : 1);
-            const py = y + waveOffset + (t === 0 || t === 1 ? 0 : topWobble);
+            const py = y + waveOffset + (t === 0 || t === 1 ? 0 : topWobble) + layerWobble;
             points.push({ x: px, y: py });
         }
 
@@ -317,7 +389,7 @@ class Tube {
             const cpy = (prev.y + curr.y) / 2;
             ctx.quadraticCurveTo(prev.x, prev.y, cpx, cpy);
         }
-        ctx.lineTo(points[points.length - 1].x, y + height + bottomWobble);
+        ctx.lineTo(x + this.width + tiltOffsetX, y + height + bottomWobble);
         ctx.lineTo(x, y + height + bottomWobble);
         ctx.closePath();
 
@@ -331,10 +403,11 @@ class Tube {
 
         if (isTop) {
             ctx.beginPath();
-            ctx.moveTo(x + 10, y + 5);
-            ctx.quadraticCurveTo(x + this.width / 2, y - 2, x + this.width - 10, y + 5);
-            ctx.lineTo(x + this.width - 5, y + 12);
-            ctx.quadraticCurveTo(x + this.width / 2, y + 8, x + 5, y + 12);
+            const surfaceTiltX = tiltOffsetX * 0.5;
+            ctx.moveTo(x + 10 + surfaceTiltX, y + 5);
+            ctx.quadraticCurveTo(x + this.width / 2 + surfaceTiltX, y - 2, x + this.width - 10 + surfaceTiltX, y + 5);
+            ctx.lineTo(x + this.width - 5 + surfaceTiltX, y + 12);
+            ctx.quadraticCurveTo(x + this.width / 2 + surfaceTiltX, y + 8, x + 5 + surfaceTiltX, y + 12);
             ctx.closePath();
 
             const surfaceGradient = ctx.createLinearGradient(x, y, x, y + 15);
@@ -347,7 +420,7 @@ class Tube {
 
         ctx.beginPath();
         ctx.ellipse(
-            x + this.width * 0.3 + Math.sin(this.wobbleTime + layerIndex) * 5,
+            x + this.width * 0.3 + Math.sin(this.wobbleTime + layerIndex) * 5 + tiltOffsetX * 0.3,
             y + height * 0.4,
             8,
             5,
@@ -360,7 +433,7 @@ class Tube {
 
         ctx.beginPath();
         ctx.ellipse(
-            x + this.width * 0.7 + Math.cos(this.wobbleTime * 0.8 + layerIndex) * 5,
+            x + this.width * 0.7 + Math.cos(this.wobbleTime * 0.8 + layerIndex) * 5 + tiltOffsetX * 0.7,
             y + height * 0.6,
             5,
             3,
@@ -428,8 +501,8 @@ class Tube {
     }
 
     containsPoint(px, py) {
-        return px >= this.x && px <= this.x + this.width &&
-               py >= this.y && py <= this.y + this.height;
+        return px >= this.currentX && px <= this.currentX + this.width &&
+               py >= this.currentY && py <= this.currentY + this.height;
     }
 }
 
@@ -438,51 +511,164 @@ class PourAnimation {
         this.fromTube = fromTube;
         this.toTube = toTube;
         this.color = color;
-        this.progress = 0;
+
+        this.phase = 'moveUp';
+        this.phaseProgress = 0;
+
         this.isComplete = false;
         this.liquidRemoved = false;
         this.liquidAdded = false;
+
         this.streamParticles = [];
         this.droplets = [];
+
+        this.originalFromX = fromTube.originalX;
+        this.originalFromY = fromTube.originalY;
+        this.originalToX = toTube.originalX;
+        this.originalToY = toTube.originalY;
+
+        this.toTubeTopX = this.originalToX + toTube.width / 2;
+        this.toTubeTopY = this.originalToY;
+
+        this.pourAngle = -45 * Math.PI / 180;
+
+        this.pouredVolume = 0;
+        this.totalToPour = fromTube.getTopVolume();
+        this.pourSpeed = 0.8;
     }
 
     update(deltaTime) {
         const dt = deltaTime / 16;
-        this.progress += 0.015 * dt;
+        this.phaseProgress += 0.015 * dt;
 
-        if (this.progress >= 1) {
-            this.progress = 1;
-            if (!this.liquidAdded && this.toTube.canReceive(this.color)) {
-                this.toTube.addLiquid(this.color);
-                this.liquidAdded = true;
-            }
-            this.isComplete = true;
+        switch (this.phase) {
+            case 'moveUp':
+                this.updateMoveUp();
+                break;
+            case 'moveToTarget':
+                this.updateMoveToTarget();
+                break;
+            case 'tilt':
+                this.updateTilt();
+                break;
+            case 'pouring':
+                this.updatePouring(dt);
+                break;
+            case 'untilt':
+                this.updateUntilt();
+                break;
+            case 'moveBack':
+                this.updateMoveBack();
+                break;
+            case 'complete':
+                this.isComplete = true;
+                break;
         }
 
-        if (this.progress > 0.2 && !this.liquidRemoved) {
-            this.fromTube.removeLiquid();
-            this.liquidRemoved = true;
-            this.fromTube.triggerShake();
-        }
-
-        if (this.progress > 0.1 && this.progress < 0.9) {
-            this.updateStream(dt);
-        }
-
+        this.updateStream(dt);
         this.updateDroplets(dt);
     }
 
+    updateMoveUp() {
+        const progress = this.easeOutCubic(Math.min(this.phaseProgress, 1));
+        const liftHeight = 60;
+        this.fromTube.moveTo(this.originalFromX, this.originalFromY - liftHeight * progress);
+
+        if (this.phaseProgress >= 1) {
+            this.phaseProgress = 0;
+            this.phase = 'moveToTarget';
+        }
+    }
+
+    updateMoveToTarget() {
+        const progress = this.easeInOutCubic(Math.min(this.phaseProgress, 1));
+        const fromCenterX = this.originalFromX + this.fromTube.width / 2;
+        const toTopX = this.toTubeTopX;
+        const liftHeight = 60;
+
+        const newX = this.originalFromX + (toTopX - fromCenterX + this.fromTube.width / 4) * progress;
+        this.fromTube.moveTo(newX, this.originalFromY - liftHeight);
+
+        if (this.phaseProgress >= 1) {
+            this.phaseProgress = 0;
+            this.phase = 'tilt';
+        }
+    }
+
+    updateTilt() {
+        const progress = this.easeOutCubic(Math.min(this.phaseProgress, 1));
+        this.fromTube.rotateTo(this.pourAngle * progress);
+
+        if (this.phaseProgress >= 1) {
+            this.phaseProgress = 0;
+            this.phase = 'pouring';
+        }
+    }
+
+    updatePouring(dt) {
+        if (!this.liquidRemoved && this.phaseProgress > 0.1) {
+            const pourAmount = Math.min(this.totalToPour, this.pourSpeed);
+            const result = this.fromTube.removeTopLiquid(pourAmount);
+            if (result.color) {
+                this.pouredVolume += result.volume;
+                this.liquidRemoved = true;
+            }
+        }
+
+        if (this.liquidRemoved && !this.liquidAdded && this.phaseProgress > 0.5) {
+            const added = this.toTube.addLiquid(this.color, this.pouredVolume, true);
+            if (added > 0) {
+                this.liquidAdded = true;
+                this.toTube.triggerSplash();
+            }
+        }
+
+        if (this.phaseProgress >= 1) {
+            this.phaseProgress = 0;
+            this.phase = 'untilt';
+        }
+    }
+
+    updateUntilt() {
+        const progress = this.easeInCubic(Math.min(this.phaseProgress, 1));
+        this.fromTube.rotateTo(this.pourAngle * (1 - progress));
+
+        if (this.phaseProgress >= 1) {
+            this.phaseProgress = 0;
+            this.phase = 'moveBack';
+        }
+    }
+
+    updateMoveBack() {
+        const progress = this.easeInOutCubic(Math.min(this.phaseProgress, 1));
+
+        const fromCenterX = this.originalFromX + this.fromTube.width / 2;
+        const toTopX = this.toTubeTopX;
+        const currentOffset = (toTopX - fromCenterX + this.fromTube.width / 4) * (1 - progress);
+
+        this.fromTube.moveTo(this.originalFromX + currentOffset, this.originalFromY);
+
+        if (this.phaseProgress >= 1) {
+            this.phaseProgress = 0;
+            this.phase = 'complete';
+        }
+    }
+
     updateStream(dt) {
-        if (Math.random() < 0.8) {
-            const startX = this.fromTube.x + this.fromTube.width / 2;
-            const startY = this.fromTube.y + this.fromTube.height;
-            
-            const endX = this.toTube.x + this.toTube.width / 2;
-            const endY = this.toTube.y;
+        if (this.phase !== 'pouring' && this.phase !== 'tilt' && this.phase !== 'untilt') {
+            return;
+        }
+
+        if (this.phase === 'pouring' && Math.random() < 0.8) {
+            const fromPos = this.getPouringPosition();
+            const toPos = {
+                x: this.toTubeTopX,
+                y: this.originalToY
+            };
 
             const progress = Math.random();
-            const x = startX + (endX - startX) * progress;
-            const y = startY + (endY - startY) * progress;
+            const x = fromPos.x + (toPos.x - fromPos.x) * progress;
+            const y = fromPos.y + (toPos.y - fromPos.y) * progress;
 
             this.streamParticles.push({
                 x: x,
@@ -499,10 +685,10 @@ class PourAnimation {
             return p.life > 0;
         });
 
-        if (Math.random() < 0.2) {
+        if (this.phase === 'pouring' && Math.random() < 0.2) {
             this.droplets.push({
-                x: this.toTube.x + this.toTube.width / 2 + (Math.random() - 0.5) * 20,
-                y: this.toTube.y + 5,
+                x: this.toTubeTopX + (Math.random() - 0.5) * 20,
+                y: this.originalToY + 5,
                 vy: 1 + Math.random() * 2,
                 size: 2 + Math.random() * 3,
                 life: 1
@@ -515,75 +701,87 @@ class PourAnimation {
             d.vy += 0.3 * dt;
             d.y += d.vy * dt;
             d.life -= 0.02 * dt;
-            return d.life > 0 && d.y < this.toTube.y + this.toTube.height;
+            return d.life > 0 && d.y < this.originalToY + this.toTube.height;
         });
     }
 
+    getPouringPosition() {
+        const angle = this.fromTube.rotation;
+        const tubeX = this.fromTube.currentX;
+        const tubeY = this.fromTube.currentY;
+        const tubeWidth = this.fromTube.width;
+        const tubeHeight = this.fromTube.height;
+
+        const spoutX = tubeX + tubeWidth;
+        const spoutY = tubeY;
+
+        const centerX = tubeX + tubeWidth / 2;
+        const centerY = tubeY + tubeHeight * 0.8;
+
+        const dx = spoutX - centerX;
+        const dy = spoutY - centerY;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+
+        const rotatedX = centerX + dx * cos - dy * sin;
+        const rotatedY = centerY + dx * sin + dy * cos;
+
+        return { x: rotatedX, y: rotatedY };
+    }
+
     draw(ctx) {
-        if (this.progress <= 0) return;
-
-        const startX = this.fromTube.x + this.fromTube.width / 2;
-        const startY = this.fromTube.y + this.fromTube.height;
-        
-        const endX = this.toTube.x + this.toTube.width / 2;
-        const endY = this.toTube.y;
-
-        const streamProgress = Math.min(this.progress * 1.5, 1);
-        const streamEndY = startY + (endY - startY) * streamProgress;
+        if ((this.phase !== 'pouring' && this.phase !== 'tilt' && this.phase !== 'untilt') ||
+            this.streamParticles.length === 0) {
+            return;
+        }
 
         ctx.save();
 
-        const streamWidth = 6 + Math.sin(this.progress * Math.PI) * 4;
+        const fromPos = this.getPouringPosition();
+        const toPos = {
+            x: this.toTubeTopX,
+            y: this.originalToY
+        };
+
+        const streamWidth = 6 + Math.sin(this.phaseProgress * Math.PI * 3) * 3;
 
         ctx.beginPath();
-        ctx.moveTo(startX - streamWidth / 2, startY);
-        
-        const controlX1 = startX + (endX - startX) * 0.3;
-        const controlY1 = startY + (streamEndY - startY) * 0.5;
-        const controlX2 = startX + (endX - startX) * 0.7;
-        const controlY2 = startY + (streamEndY - startY) * 0.7;
+        ctx.moveTo(fromPos.x - streamWidth / 2, fromPos.y);
+
+        const controlX1 = fromPos.x + (toPos.x - fromPos.x) * 0.3;
+        const controlY1 = fromPos.y + (toPos.y - fromPos.y) * 0.5;
+        const controlX2 = fromPos.x + (toPos.x - fromPos.x) * 0.7;
+        const controlY2 = fromPos.y + (toPos.y - fromPos.y) * 0.7;
 
         ctx.bezierCurveTo(
-            controlX1 + Math.sin(this.progress * 5) * 2,
+            controlX1 + Math.sin(this.phaseProgress * 10) * 2,
             controlY1,
-            controlX2 + Math.cos(this.progress * 5) * 3,
+            controlX2 + Math.cos(this.phaseProgress * 10) * 3,
             controlY2,
-            endX - streamWidth / 2,
-            streamEndY
+            toPos.x - streamWidth / 2,
+            toPos.y
         );
 
-        ctx.lineTo(endX + streamWidth / 2, streamEndY);
+        ctx.lineTo(toPos.x + streamWidth / 2, toPos.y);
 
         ctx.bezierCurveTo(
-            controlX2 + Math.cos(this.progress * 5) * 3 + streamWidth / 2,
+            controlX2 + Math.cos(this.phaseProgress * 10) * 3 + streamWidth / 2,
             controlY2,
-            controlX1 + Math.sin(this.progress * 5) * 2 + streamWidth / 2,
+            controlX1 + Math.sin(this.phaseProgress * 10) * 2 + streamWidth / 2,
             controlY1,
-            startX + streamWidth / 2,
-            startY
+            fromPos.x + streamWidth / 2,
+            fromPos.y
         );
 
         ctx.closePath();
 
-        const gradient = ctx.createLinearGradient(startX, startY, endX, streamEndY);
+        const gradient = ctx.createLinearGradient(fromPos.x, fromPos.y, toPos.x, toPos.y);
         gradient.addColorStop(0, this.lightenColor(this.color, 30));
         gradient.addColorStop(0.5, this.color);
         gradient.addColorStop(1, this.darkenColor(this.color, 20));
 
         ctx.fillStyle = gradient;
         ctx.fill();
-
-        ctx.beginPath();
-        ctx.moveTo(startX - streamWidth / 4, startY);
-        ctx.quadraticCurveTo(
-            (startX + endX) / 2,
-            (startY + streamEndY) / 2,
-            endX - streamWidth / 4,
-            streamEndY
-        );
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
 
         this.streamParticles.forEach(p => {
             ctx.globalAlpha = p.life;
@@ -602,6 +800,18 @@ class PourAnimation {
         });
 
         ctx.restore();
+    }
+
+    easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
+    }
+
+    easeInCubic(t) {
+        return t * t * t;
+    }
+
+    easeInOutCubic(t) {
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     }
 
     lightenColor(color, percent) {
@@ -794,26 +1004,24 @@ class FluidColorSortGame extends GameInterface {
         if (!this.ctx) return;
 
         this.tubes = [];
-        
+
         const canvasWidth = this.gameCanvas.width;
         const canvasHeight = this.gameCanvas.height;
-        
+
         const tubeWidth = Math.min(60, canvasWidth / 8);
         const tubeHeight = Math.min(200, canvasHeight * 0.6);
-        const padding = 20;
-        
+
         let numTubes = 6 + Math.floor(this.level / 3);
         numTubes = Math.min(numTubes, 8);
-        
+
         const numEmptyTubes = 2;
         const numFilledTubes = numTubes - numEmptyTubes;
 
         const colorsToUse = FLUID_COLORS.fluidColors.slice(0, numFilledTubes);
-        
+
         let tubesPerRow;
-        let tubeSpacing;
         let rows;
-        
+
         if (numTubes <= 4) {
             tubesPerRow = numTubes;
             rows = 1;
@@ -841,10 +1049,10 @@ class FluidColorSortGame extends GameInterface {
                 const y = startY + row * rowSpacing;
 
                 const tube = new Tube(x, y, tubeWidth, tubeHeight, index);
-                
+
                 if (index < liquidConfig.length) {
-                    liquidConfig[index].forEach(color => {
-                        tube.addLiquid(color, false);
+                    liquidConfig[index].forEach(liquid => {
+                        tube.addLiquid(liquid.color, liquid.volume, false);
                     });
                 }
 
@@ -869,7 +1077,24 @@ class FluidColorSortGame extends GameInterface {
         }
 
         for (let i = 0; i < numFilledTubes; i++) {
-            config.push(allLiquids.slice(i * 4, (i + 1) * 4));
+            const tubeLiquids = [];
+            const rawLiquids = allLiquids.slice(i * 4, (i + 1) * 4);
+
+            let currentColor = rawLiquids[0];
+            let currentVolume = 1;
+
+            for (let j = 1; j < rawLiquids.length; j++) {
+                if (rawLiquids[j] === currentColor) {
+                    currentVolume++;
+                } else {
+                    tubeLiquids.push({ color: currentColor, volume: currentVolume });
+                    currentColor = rawLiquids[j];
+                    currentVolume = 1;
+                }
+            }
+            tubeLiquids.push({ color: currentColor, volume: currentVolume });
+
+            config.push(tubeLiquids);
         }
 
         return config;
@@ -909,14 +1134,14 @@ class FluidColorSortGame extends GameInterface {
                 transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
             `;
             button.addEventListener('click', btn.action);
-            
+
             button.addEventListener('mouseenter', () => {
                 button.style.transform = 'translateY(-2px)';
                 button.style.background = 'linear-gradient(135deg, #FF6B9D, #4ECDC4)';
                 button.style.boxShadow = '0 8px 25px rgba(255, 107, 157, 0.3)';
                 button.style.borderColor = 'transparent';
             });
-            
+
             button.addEventListener('mouseleave', () => {
                 button.style.transform = 'translateY(0)';
                 button.style.background = FLUID_COLORS.glassBg;
@@ -949,7 +1174,7 @@ class FluidColorSortGame extends GameInterface {
         this.backgroundParticles.forEach(p => {
             p.x += p.speedX * dt;
             p.y += p.speedY * dt;
-            
+
             if (p.x < 0) p.x = 1;
             if (p.x > 1) p.x = 0;
             if (p.y < 0) p.y = 1;
@@ -967,7 +1192,7 @@ class FluidColorSortGame extends GameInterface {
         );
         gradient.addColorStop(0, '#1e3a5f');
         gradient.addColorStop(1, FLUID_COLORS.bgGradientEnd);
-        
+
         this.ctx.fillStyle = gradient;
         this.ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -1006,7 +1231,7 @@ class FluidColorSortGame extends GameInterface {
 
     undo() {
         if (!this.history || this.history.length === 0) return;
-        
+
         const lastState = this.history.pop();
         this.tubes = lastState.tubes.map((savedTube, index) => {
             const tube = new Tube(
@@ -1016,13 +1241,15 @@ class FluidColorSortGame extends GameInterface {
                 savedTube.height,
                 index
             );
-            tube.liquids = [...savedTube.liquids];
+            tube.liquidLayers = savedTube.liquidLayers.map(layer =>
+                new LiquidLayer(layer.color, layer.volume)
+            );
             return tube;
         });
         this.moves = lastState.moves;
         this.selectedTube = null;
         this.updateHeaderDisplay();
-        
+
         this.audioManager.playSound('hit', { pitch: 0.7, volume: 0.3 });
     }
 
@@ -1030,23 +1257,23 @@ class FluidColorSortGame extends GameInterface {
         for (let i = 0; i < this.tubes.length; i++) {
             const fromTube = this.tubes[i];
             if (fromTube.isEmpty()) continue;
-            
-            const topColor = fromTube.getTopLiquid();
-            
+
+            const topColor = fromTube.getTopColor();
+
             for (let j = 0; j < this.tubes.length; j++) {
                 if (i === j) continue;
-                
+
                 const toTube = this.tubes[j];
                 if (toTube.canReceive(topColor)) {
                     fromTube.triggerShake();
                     toTube.triggerShake();
-                    
+
                     this.audioManager.playSound('combo', { pitch: 1.0, volume: 0.3 });
                     return;
                 }
             }
         }
-        
+
         this.audioManager.playSound('miss', { pitch: 0.8, volume: 0.2 });
     }
 
@@ -1054,14 +1281,17 @@ class FluidColorSortGame extends GameInterface {
         if (!this.history) {
             this.history = [];
         }
-        
+
         this.history.push({
             tubes: this.tubes.map(tube => ({
                 x: tube.x,
                 y: tube.y,
                 width: tube.width,
                 height: tube.height,
-                liquids: [...tube.liquids]
+                liquidLayers: tube.liquidLayers.map(layer => ({
+                    color: layer.color,
+                    volume: layer.volume
+                }))
             })),
             moves: this.moves
         });
@@ -1096,17 +1326,17 @@ class FluidColorSortGame extends GameInterface {
             return;
         }
 
-        const topColor = fromTube.getTopLiquid();
+        const topColor = fromTube.getTopColor();
 
         if (toTube.canReceive(topColor)) {
             this.saveState();
-            
+
             const pourAnim = new PourAnimation(fromTube, toTube, topColor);
             this.pourAnimations.push(pourAnim);
-            
+
             this.moves++;
             this.updateHeaderDisplay();
-            
+
             this.audioManager.playSound('combo', { pitch: 0.9, volume: 0.3 });
         } else {
             fromTube.triggerShake();
@@ -1224,7 +1454,7 @@ class FluidColorSortGame extends GameInterface {
     updateHeaderDisplay() {
         const levelDisplay = document.getElementById('fluid-sort-level');
         const movesDisplay = document.getElementById('fluid-sort-moves');
-        
+
         if (levelDisplay) {
             levelDisplay.innerHTML = `<span style="color: #FF6B9D;">🧪</span> 第 ${this.level} 关`;
         }
