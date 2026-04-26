@@ -153,6 +153,7 @@ class NeonPacmanGame extends GameInterface {
         this.isWaiting = false;
         this.countdownValue = 0;
         this.isLevelComplete = false;
+        this.pendingLevelComplete = false;
         
         this.keys = {
             up: false,
@@ -564,6 +565,7 @@ class NeonPacmanGame extends GameInterface {
         this.powerModeTimer = 0;
         this.speedBoost = false;
         this.speedBoostTimer = 0;
+        this.pendingLevelComplete = false;
         
         this.countDots();
         this.initPacman();
@@ -701,6 +703,12 @@ class NeonPacmanGame extends GameInterface {
         if (!this.isRunning) return;
         
         const currentTime = performance.now();
+        
+        if (this.pendingLevelComplete) {
+            this.pendingLevelComplete = false;
+            this.isLevelComplete = true;
+            this.levelComplete();
+        }
         
         if (!this.isPaused && !this.isGameOver && !this.isWaiting && !this.isLevelComplete) {
             this.update(currentTime);
@@ -1180,8 +1188,7 @@ class NeonPacmanGame extends GameInterface {
 
     checkLevelComplete() {
         if (this.dots <= 0) {
-            this.isLevelComplete = true;
-            this.levelComplete();
+            this.pendingLevelComplete = true;
         }
     }
 
