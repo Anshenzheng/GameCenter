@@ -34,7 +34,8 @@ const TILE = {
     DOT: 2,
     POWER_PELLET: 3,
     GHOST_HOUSE: 4,
-    GHOST_DOOR: 5
+    GHOST_DOOR: 5,
+    SPEED_BOOST: 6
 };
 
 const DIRECTIONS = {
@@ -64,7 +65,7 @@ const GHOST_COLORS = [
 function createMaze() {
     const maze = [
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-        [1,2,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,2,1],
+        [1,6,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,6,1],
         [1,3,1,1,2,1,1,1,1,2,1,2,1,1,1,1,2,1,1,3,1],
         [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
         [1,2,1,1,2,1,2,1,1,1,1,1,1,1,2,1,2,1,1,2,1],
@@ -82,7 +83,7 @@ function createMaze() {
         [1,1,2,1,2,1,2,1,1,1,1,1,1,1,2,1,2,1,2,1,1],
         [1,2,2,2,2,1,2,2,2,1,1,1,2,2,2,1,2,2,2,2,1],
         [1,2,1,1,1,1,1,1,2,1,1,1,2,1,1,1,1,1,1,2,1],
-        [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+        [1,6,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,6,1],
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
     ];
@@ -134,6 +135,12 @@ class NeonPacmanGame extends GameInterface {
         this.powerMode = false;
         this.powerModeTimer = 0;
         this.powerModeDuration = 8000;
+        
+        this.speedBoost = false;
+        this.speedBoostTimer = 0;
+        this.speedBoostDuration = 5000;
+        this.baseSpeed = 2.0;
+        this.boostedSpeed = 3.5;
         
         this.lives = 3;
         this.level = 1;
@@ -380,6 +387,23 @@ class NeonPacmanGame extends GameInterface {
         `;
         hud.appendChild(this.powerModeDisplay);
 
+        this.speedBoostDisplay = document.createElement('div');
+        this.speedBoostDisplay.id = 'speed-boost-display';
+        this.speedBoostDisplay.style.cssText = `
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(57, 255, 20, 0.2);
+            border: 1px solid ${NEON_PACMAN_COLORS.NEON_GREEN};
+            border-radius: 8px;
+            display: none;
+            text-align: center;
+        `;
+        this.speedBoostDisplay.innerHTML = `
+            <div style="font-size: 0.8rem; color: ${NEON_PACMAN_COLORS.NEON_GREEN}; font-weight: bold;">🚀 加速模式！</div>
+            <div id="speed-boost-timer" style="font-size: 0.7rem; color: ${NEON_PACMAN_COLORS.TEXT_SECONDARY};">剩余时间: 5s</div>
+        `;
+        hud.appendChild(this.speedBoostDisplay);
+
         this.leftPanel.appendChild(hud);
     }
 
@@ -538,6 +562,8 @@ class NeonPacmanGame extends GameInterface {
         this.particles = [];
         this.powerMode = false;
         this.powerModeTimer = 0;
+        this.speedBoost = false;
+        this.speedBoostTimer = 0;
         
         this.countDots();
         this.initPacman();
@@ -571,39 +597,81 @@ class NeonPacmanGame extends GameInterface {
             nextDirection: DIRECTIONS.RIGHT,
             mouthAngle: 0.25,
             mouthDirection: 1,
-            speed: 2.0,
+            speed: this.speedBoost ? this.boostedSpeed : this.baseSpeed,
             moving: false
         };
+    }
+
+    getValidGhostSpawnPositions() {
+        const validPositions = [];
+        const pacmanStartX = 10;
+        const pacmanStartY = 15;
+        const minDistance = 5;
+        
+        for (let y = 0; y < ROWS; y++) {
+            for (let x = 0; x < COLS; x++) {
+                const tile = this.maze[y][x];
+                if (tile !== TILE.WALL && tile !== TILE.GHOST_HOUSE && tile !== TILE.GHOST_DOOR) {
+                    const distance = Math.abs(x - pacmanStartX) + Math.abs(y - pacmanStartY);
+                    if (distance >= minDistance) {
+                        validPositions.push({ tileX: x, tileY: y });
+                    }
+                }
+            }
+        }
+        
+        return validPositions;
     }
 
     initGhosts() {
         this.ghosts = [];
         const config = this.getLevelConfig();
-        const positions = [
-            { tileX: 9, tileY: 9, color: GHOST_COLORS[0] },
-            { tileX: 10, tileY: 9, color: GHOST_COLORS[1] },
-            { tileX: 11, tileY: 9, color: GHOST_COLORS[2] },
-            { tileX: 10, tileY: 8, color: GHOST_COLORS[3] }
-        ];
+        const validPositions = this.getValidGhostSpawnPositions();
         
-        for (let i = 0; i < Math.min(config.ghostCount, positions.length); i++) {
-            const pos = positions[i];
+        const shuffledPositions = [...validPositions];
+        for (let i = shuffledPositions.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffledPositions[i], shuffledPositions[j]] = [shuffledPositions[j], shuffledPositions[i]];
+        }
+        
+        for (let i = 0; i < Math.min(config.ghostCount, shuffledPositions.length); i++) {
+            const pos = shuffledPositions[i];
+            const defaultHomePos = { tileX: 10, tileY: 9 };
             this.ghosts.push({
                 x: pos.tileX * CELL_SIZE + CELL_SIZE / 2,
                 y: pos.tileY * CELL_SIZE + CELL_SIZE / 2,
                 tileX: pos.tileX,
                 tileY: pos.tileY,
-                direction: DIRECTIONS.UP,
-                color: pos.color,
+                direction: this.getRandomGhostDirection(pos.tileX, pos.tileY),
+                color: GHOST_COLORS[i % GHOST_COLORS.length],
                 speed: config.ghostSpeed,
                 vulnerable: false,
                 eaten: false,
-                homeX: pos.tileX,
-                homeY: pos.tileY,
+                homeX: defaultHomePos.tileX,
+                homeY: defaultHomePos.tileY,
                 scatterTimer: 0,
                 chaseTimer: 0
             });
         }
+    }
+
+    getRandomGhostDirection(tileX, tileY) {
+        const directions = [];
+        const dirs = [DIRECTIONS.UP, DIRECTIONS.DOWN, DIRECTIONS.LEFT, DIRECTIONS.RIGHT];
+        
+        dirs.forEach(dir => {
+            const nextX = tileX + dir.x;
+            const nextY = tileY + dir.y;
+            if (this.canGhostMoveTo(nextX, nextY)) {
+                directions.push(dir);
+            }
+        });
+        
+        if (directions.length === 0) {
+            return DIRECTIONS.UP;
+        }
+        
+        return directions[Math.floor(Math.random() * directions.length)];
     }
 
     getLevelConfig() {
@@ -645,6 +713,7 @@ class NeonPacmanGame extends GameInterface {
         this.updatePacman();
         this.updateGhosts(currentTime);
         this.updatePowerMode(currentTime);
+        this.updateSpeedBoost();
         this.updateParticles();
         this.checkCollisions();
         this.checkLevelComplete();
@@ -654,19 +723,19 @@ class NeonPacmanGame extends GameInterface {
         this.handleInputDirection();
         
         const pacman = this.pacman;
-        const nextTileX = pacman.tileX + pacman.nextDirection.x;
-        const nextTileY = pacman.tileY + pacman.nextDirection.y;
-        
-        if (this.canMoveTo(nextTileX, nextTileY)) {
-            pacman.direction = pacman.nextDirection;
-        }
-        
-        const moveTileX = pacman.tileX + pacman.direction.x;
-        const moveTileY = pacman.tileY + pacman.direction.y;
-        
         const atTileCenter = this.isAtTileCenter(pacman.x, pacman.y, pacman.tileX, pacman.tileY, pacman.direction);
         
         if (atTileCenter) {
+            const nextTileX = pacman.tileX + pacman.nextDirection.x;
+            const nextTileY = pacman.tileY + pacman.nextDirection.y;
+            
+            if (this.canMoveTo(nextTileX, nextTileY)) {
+                pacman.direction = pacman.nextDirection;
+            }
+            
+            const moveTileX = pacman.tileX + pacman.direction.x;
+            const moveTileY = pacman.tileY + pacman.direction.y;
+            
             if (this.canMoveTo(moveTileX, moveTileY)) {
                 pacman.moving = true;
                 pacman.tileX = moveTileX;
@@ -713,11 +782,17 @@ class NeonPacmanGame extends GameInterface {
         
         const threshold = 2;
         
-        if (direction.x !== 0) {
-            return Math.abs(y - tileCenterY) < threshold;
-        } else {
-            return Math.abs(x - tileCenterX) < threshold;
+        if (direction.x > 0) {
+            return x >= tileCenterX - threshold;
+        } else if (direction.x < 0) {
+            return x <= tileCenterX + threshold;
+        } else if (direction.y > 0) {
+            return y >= tileCenterY - threshold;
+        } else if (direction.y < 0) {
+            return y <= tileCenterY + threshold;
         }
+        
+        return Math.abs(x - tileCenterX) < threshold && Math.abs(y - tileCenterY) < threshold;
     }
 
     canMoveTo(tileX, tileY) {
@@ -736,10 +811,10 @@ class NeonPacmanGame extends GameInterface {
     handleTunnel(pacman) {
         if (pacman.tileX < 0) {
             pacman.tileX = COLS - 1;
-            pacman.x = pacman.tileX * CELL_SIZE;
+            pacman.x = pacman.tileX * CELL_SIZE + CELL_SIZE / 2;
         } else if (pacman.tileX >= COLS) {
             pacman.tileX = 0;
-            pacman.x = 0;
+            pacman.x = CELL_SIZE / 2;
         }
     }
 
@@ -763,6 +838,13 @@ class NeonPacmanGame extends GameInterface {
             this.activatePowerMode();
             this.createPowerPelletParticles(tileX * CELL_SIZE + CELL_SIZE / 2, tileY * CELL_SIZE + CELL_SIZE / 2);
             this.audioManager.playSound('combo', { pitch: 1.5, volume: 0.5 });
+        } else if (tile === TILE.SPEED_BOOST) {
+            this.maze[tileY][tileX] = TILE.EMPTY;
+            this.score += 30;
+            this.updateScore(this.score);
+            this.activateSpeedBoost();
+            this.createSpeedBoostParticles(tileX * CELL_SIZE + CELL_SIZE / 2, tileY * CELL_SIZE + CELL_SIZE / 2);
+            this.audioManager.playSound('combo', { pitch: 1.8, volume: 0.5 });
         }
     }
 
@@ -812,6 +894,65 @@ class NeonPacmanGame extends GameInterface {
         if (timerEl) {
             const remaining = Math.max(0, Math.ceil(this.powerModeTimer / 1000));
             timerEl.textContent = `剩余时间: ${remaining}s`;
+        }
+    }
+
+    activateSpeedBoost() {
+        this.speedBoost = true;
+        this.speedBoostTimer = this.speedBoostDuration;
+        this.pacman.speed = this.boostedSpeed;
+        this.showSpeedBoostDisplay();
+    }
+
+    updateSpeedBoost() {
+        if (this.speedBoost) {
+            this.speedBoostTimer -= 16;
+            
+            if (this.speedBoostTimer <= 0) {
+                this.speedBoost = false;
+                this.pacman.speed = this.baseSpeed;
+                this.hideSpeedBoostDisplay();
+            } else {
+                this.updateSpeedBoostTimer();
+            }
+        }
+    }
+
+    showSpeedBoostDisplay() {
+        if (this.speedBoostDisplay) {
+            this.speedBoostDisplay.style.display = 'block';
+        }
+    }
+
+    hideSpeedBoostDisplay() {
+        if (this.speedBoostDisplay) {
+            this.speedBoostDisplay.style.display = 'none';
+        }
+    }
+
+    updateSpeedBoostTimer() {
+        const timerEl = document.getElementById('speed-boost-timer');
+        if (timerEl) {
+            const remaining = Math.max(0, Math.ceil(this.speedBoostTimer / 1000));
+            timerEl.textContent = `剩余时间: ${remaining}s`;
+        }
+    }
+
+    createSpeedBoostParticles(x, y) {
+        for (let i = 0; i < 12; i++) {
+            const angle = (Math.PI * 2 / 12) * i;
+            const speed = 2 + Math.random() * 2;
+            this.particles.push({
+                x: x,
+                y: y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: 3 + Math.random() * 4,
+                color: NEON_PACMAN_COLORS.NEON_GREEN,
+                life: 1,
+                decay: 0.025,
+                type: 'speed'
+            });
         }
     }
 
@@ -943,7 +1084,7 @@ class NeonPacmanGame extends GameInterface {
     }
 
     returnGhostToHome(ghost) {
-        const atTileCenter = this.isAtTileCenter(ghost.x, ghost.y, ghost.direction);
+        const atTileCenter = this.isAtTileCenter(ghost.x, ghost.y, ghost.tileX, ghost.tileY, ghost.direction);
         
         if (atTileCenter) {
             if (ghost.tileX === ghost.homeX && ghost.tileY === ghost.homeY) {
@@ -1029,6 +1170,8 @@ class NeonPacmanGame extends GameInterface {
         this.initGhosts();
         this.powerMode = false;
         this.hidePowerModeDisplay();
+        this.speedBoost = false;
+        this.hideSpeedBoostDisplay();
     }
 
     checkLevelComplete() {
@@ -1403,6 +1546,8 @@ class NeonPacmanGame extends GameInterface {
                     this.drawDot(ctx, px, py);
                 } else if (tile === TILE.POWER_PELLET) {
                     this.drawPowerPellet(ctx, px, py, time);
+                } else if (tile === TILE.SPEED_BOOST) {
+                    this.drawSpeedBoost(ctx, px, py, time);
                 }
             }
         }
@@ -1430,6 +1575,28 @@ class NeonPacmanGame extends GameInterface {
         
         ctx.beginPath();
         ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.shadowBlur = 0;
+    }
+
+    drawSpeedBoost(ctx, x, y, time) {
+        const pulse = Math.sin(time * 6) * 0.3 + 0.7;
+        const size = 5 + pulse * 2;
+        
+        ctx.fillStyle = NEON_PACMAN_COLORS.NEON_GREEN;
+        ctx.shadowColor = NEON_PACMAN_COLORS.NEON_GREEN;
+        ctx.shadowBlur = 12 * pulse;
+        
+        ctx.beginPath();
+        ctx.moveTo(x, y - size);
+        ctx.lineTo(x + size, y + size * 0.5);
+        ctx.lineTo(x + size * 0.3, y + size * 0.5);
+        ctx.lineTo(x + size * 0.3, y + size);
+        ctx.lineTo(x - size * 0.3, y + size);
+        ctx.lineTo(x - size * 0.3, y + size * 0.5);
+        ctx.lineTo(x - size, y + size * 0.5);
+        ctx.closePath();
         ctx.fill();
         
         ctx.shadowBlur = 0;
