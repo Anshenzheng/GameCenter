@@ -70,6 +70,13 @@ class Tube {
         this.addAnimationTime = 0;
         this.glassHighlight = Math.random() * 0.3 + 0.7;
         this.tiltLiquidOffset = 0;
+
+        this.pouringColor = null;
+        this.pouringVolume = 0;
+        this.pouringTotalVolume = 0;
+        this.receivingColor = null;
+        this.receivingVolume = 0;
+        this.receivingTotalVolume = 0;
     }
 
     getTotalVolume() {
@@ -115,19 +122,52 @@ class Tube {
         return volume;
     }
 
-    removeTopLiquid(volume = 1) {
+    removeTopLiquid() {
         if (this.liquidLayers.length === 0) return { color: null, volume: 0 };
 
         const topLayer = this.liquidLayers[this.liquidLayers.length - 1];
-        const removeVolume = Math.min(volume, topLayer.volume);
+        const volume = topLayer.volume;
+        const color = topLayer.color;
 
-        topLayer.volume -= removeVolume;
+        this.liquidLayers.pop();
 
-        if (topLayer.volume <= 0) {
-            this.liquidLayers.pop();
+        return { color, volume };
+    }
+
+    startPouringAnimation(color, totalVolume) {
+        this.pouringColor = color;
+        this.pouringTotalVolume = totalVolume;
+        this.pouringVolume = 0;
+    }
+
+    updatePouringProgress(progress) {
+        if (this.pouringColor && this.pouringTotalVolume > 0) {
+            this.pouringVolume = this.pouringTotalVolume * progress;
         }
+    }
 
-        return { color: topLayer.color, volume: removeVolume };
+    endPouringAnimation() {
+        this.pouringColor = null;
+        this.pouringVolume = 0;
+        this.pouringTotalVolume = 0;
+    }
+
+    startReceivingAnimation(color, totalVolume) {
+        this.receivingColor = color;
+        this.receivingTotalVolume = totalVolume;
+        this.receivingVolume = 0;
+    }
+
+    updateReceivingProgress(progress) {
+        if (this.receivingColor && this.receivingTotalVolume > 0) {
+            this.receivingVolume = this.receivingTotalVolume * progress;
+        }
+    }
+
+    endReceivingAnimation() {
+        this.receivingColor = null;
+        this.receivingVolume = 0;
+        this.receivingTotalVolume = 0;
     }
 
     isEmpty() {
@@ -337,27 +377,41 @@ class Tube {
     }
 
     drawLiquids(ctx, x, y) {
-        if (this.liquidLayers.length === 0) return;
-
-        let currentY = y + this.height;
         const tiltDirection = this.rotation > 0 ? 1 : -1;
         const tiltOffsetX = this.tiltLiquidOffset * tiltDirection;
 
-        for (let i = 0; i < this.liquidLayers.length; i++) {
-            const layer = this.liquidLayers[i];
+        let displayLayers = this.liquidLayers.map(layer => new LiquidLayer(layer.color, layer.volume));
+
+        if (this.pouringColor && this.pouringVolume > 0) {
+            if (displayLayers.length > 0 && displayLayers[displayLayers.length - 1].color === this.pouringColor) {
+                displayLayers[displayLayers.length - 1].volume -= this.pouringVolume;
+                if (displayLayers[displayLayers.length - 1].volume <= 0) {
+                    displayLayers.pop();
+                }
+            }
+        }
+
+        if (this.receivingColor && this.receivingVolume > 0) {
+            if (displayLayers.length > 0 && displayLayers[displayLayers.length - 1].color === this.receivingColor) {
+                displayLayers[displayLayers.length - 1].volume += this.receivingVolume;
+            } else {
+                displayLayers.push(new LiquidLayer(this.receivingColor, this.receivingVolume));
+            }
+        }
+
+        if (displayLayers.length === 0) return;
+
+        let currentY = y + this.height;
+
+        for (let i = 0; i < displayLayers.length; i++) {
+            const layer = displayLayers[i];
             const layerHeight = layer.volume * this.singleLayerHeight;
-            const isTop = i === this.liquidLayers.length - 1;
-            const isRecentlyAdded = isTop && this.recentlyAdded && this.addAnimationTime < 1;
+            const isTop = i === displayLayers.length - 1;
 
             currentY -= layerHeight;
 
             let actualY = currentY;
             let layerWobble = Math.sin(this.wobbleTime * 2 + i) * (isTop ? 1.5 : 0.5);
-
-            if (isRecentlyAdded) {
-                const bounceEase = 1 - Math.pow(1 - this.addAnimationTime, 3);
-                actualY = currentY + (1 - bounceEase) * 30;
-            }
 
             this.drawLiquidLayer(ctx, x, actualY, layerHeight, layer.color, isTop, i, tiltOffsetX, layerWobble);
         }
@@ -507,17 +561,16 @@ class Tube {
 }
 
 class PourAnimation {
-    constructor(fromTube, toTube, color) {
+    constructor(fromTube, toTube, color, volume) {
         this.fromTube = fromTube;
         this.toTube = toTube;
         this.color = color;
+        this.volume = volume;
 
         this.phase = 'moveUp';
         this.phaseProgress = 0;
 
         this.isComplete = false;
-        this.liquidRemoved = false;
-        this.liquidAdded = false;
 
         this.streamParticles = [];
         this.droplets = [];
@@ -527,19 +580,54 @@ class PourAnimation {
         this.originalToX = toTube.originalX;
         this.originalToY = toTube.originalY;
 
-        this.toTubeTopX = this.originalToX + toTube.width / 2;
-        this.toTubeTopY = this.originalToY;
+        this.toCenterX = this.originalToX + toTube.width / 2;
+        this.toTopY = this.originalToY;
 
         this.pourAngle = -45 * Math.PI / 180;
 
-        this.pouredVolume = 0;
-        this.totalToPour = fromTube.getTopVolume();
-        this.pourSpeed = 0.8;
+        this.liftHeight = 50;
+
+        this.targetPourX = this.calculateTargetPourPosition();
+
+        this.pourStartProgress = 0.2;
+        this.pourEndProgress = 0.8;
+        this.liquidRemoved = false;
+        this.liquidAdded = false;
+        this.pourVisualProgress = 0;
+    }
+
+    calculateTargetPourPosition() {
+        const fromWidth = this.fromTube.width;
+        const fromHeight = this.fromTube.height;
+
+        const angle = this.pourAngle;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+
+        const spoutOffsetX = fromWidth;
+        const spoutOffsetY = 0;
+
+        const centerXOffset = fromWidth / 2;
+        const centerYOffset = fromHeight * 0.8;
+
+        const dx = spoutOffsetX - centerXOffset;
+        const dy = spoutOffsetY - centerYOffset;
+
+        const rotatedDx = dx * cos - dy * sin;
+        const rotatedDy = dx * sin + dy * cos;
+
+        const targetSpoutX = this.toCenterX;
+        const targetSpoutY = this.toTopY - 40;
+
+        const targetFromX = targetSpoutX - centerXOffset - rotatedDx;
+        const targetFromY = targetSpoutY - centerYOffset - rotatedDy;
+
+        return { x: targetFromX, y: targetFromY };
     }
 
     update(deltaTime) {
         const dt = deltaTime / 16;
-        this.phaseProgress += 0.015 * dt;
+        this.phaseProgress += 0.012 * dt;
 
         switch (this.phase) {
             case 'moveUp':
@@ -571,8 +659,11 @@ class PourAnimation {
 
     updateMoveUp() {
         const progress = this.easeOutCubic(Math.min(this.phaseProgress, 1));
-        const liftHeight = 60;
-        this.fromTube.moveTo(this.originalFromX, this.originalFromY - liftHeight * progress);
+        const targetY = this.originalFromY - this.liftHeight * progress;
+        this.fromTube.currentX = this.originalFromX;
+        this.fromTube.currentY = targetY;
+        this.fromTube.targetX = this.originalFromX;
+        this.fromTube.targetY = targetY;
 
         if (this.phaseProgress >= 1) {
             this.phaseProgress = 0;
@@ -582,12 +673,14 @@ class PourAnimation {
 
     updateMoveToTarget() {
         const progress = this.easeInOutCubic(Math.min(this.phaseProgress, 1));
-        const fromCenterX = this.originalFromX + this.fromTube.width / 2;
-        const toTopX = this.toTubeTopX;
-        const liftHeight = 60;
 
-        const newX = this.originalFromX + (toTopX - fromCenterX + this.fromTube.width / 4) * progress;
-        this.fromTube.moveTo(newX, this.originalFromY - liftHeight);
+        const currentX = this.originalFromX + (this.targetPourX.x - this.originalFromX) * progress;
+        const currentY = this.originalFromY - this.liftHeight + (this.targetPourX.y - (this.originalFromY - this.liftHeight)) * progress;
+
+        this.fromTube.currentX = currentX;
+        this.fromTube.currentY = currentY;
+        this.fromTube.targetX = currentX;
+        this.fromTube.targetY = currentY;
 
         if (this.phaseProgress >= 1) {
             this.phaseProgress = 0;
@@ -597,7 +690,9 @@ class PourAnimation {
 
     updateTilt() {
         const progress = this.easeOutCubic(Math.min(this.phaseProgress, 1));
-        this.fromTube.rotateTo(this.pourAngle * progress);
+        const targetAngle = this.pourAngle * progress;
+        this.fromTube.rotation = targetAngle;
+        this.fromTube.targetRotation = targetAngle;
 
         if (this.phaseProgress >= 1) {
             this.phaseProgress = 0;
@@ -606,20 +701,29 @@ class PourAnimation {
     }
 
     updatePouring(dt) {
-        if (!this.liquidRemoved && this.phaseProgress > 0.1) {
-            const pourAmount = Math.min(this.totalToPour, this.pourSpeed);
-            const result = this.fromTube.removeTopLiquid(pourAmount);
-            if (result.color) {
-                this.pouredVolume += result.volume;
-                this.liquidRemoved = true;
-            }
+        const progress = Math.min(this.phaseProgress, 1);
+
+        if (progress >= this.pourStartProgress && !this.liquidRemoved) {
+            this.fromTube.startPouringAnimation(this.color, this.volume);
+            this.liquidRemoved = true;
         }
 
-        if (this.liquidRemoved && !this.liquidAdded && this.phaseProgress > 0.5) {
-            const added = this.toTube.addLiquid(this.color, this.pouredVolume, true);
-            if (added > 0) {
+        if (this.liquidRemoved) {
+            const pourRange = this.pourEndProgress - this.pourStartProgress;
+            const currentPourProgress = Math.max(0, Math.min(1, (progress - this.pourStartProgress) / pourRange));
+            this.pourVisualProgress = currentPourProgress;
+
+            this.fromTube.updatePouringProgress(currentPourProgress);
+
+            if (progress >= this.pourStartProgress + 0.1 && !this.liquidAdded) {
+                this.toTube.startReceivingAnimation(this.color, this.volume);
                 this.liquidAdded = true;
-                this.toTube.triggerSplash();
+            }
+
+            if (this.liquidAdded) {
+                const receiveDelay = 0.1;
+                const receiveProgress = Math.max(0, Math.min(1, (progress - this.pourStartProgress - receiveDelay) / (pourRange - receiveDelay)));
+                this.toTube.updateReceivingProgress(receiveProgress);
             }
         }
 
@@ -631,7 +735,9 @@ class PourAnimation {
 
     updateUntilt() {
         const progress = this.easeInCubic(Math.min(this.phaseProgress, 1));
-        this.fromTube.rotateTo(this.pourAngle * (1 - progress));
+        const targetAngle = this.pourAngle * (1 - progress);
+        this.fromTube.rotation = targetAngle;
+        this.fromTube.targetRotation = targetAngle;
 
         if (this.phaseProgress >= 1) {
             this.phaseProgress = 0;
@@ -642,28 +748,43 @@ class PourAnimation {
     updateMoveBack() {
         const progress = this.easeInOutCubic(Math.min(this.phaseProgress, 1));
 
-        const fromCenterX = this.originalFromX + this.fromTube.width / 2;
-        const toTopX = this.toTubeTopX;
-        const currentOffset = (toTopX - fromCenterX + this.fromTube.width / 4) * (1 - progress);
+        const currentX = this.targetPourX.x + (this.originalFromX - this.targetPourX.x) * progress;
+        const currentY = this.targetPourX.y + (this.originalFromY - this.targetPourX.y) * progress;
 
-        this.fromTube.moveTo(this.originalFromX + currentOffset, this.originalFromY);
+        this.fromTube.currentX = currentX;
+        this.fromTube.currentY = currentY;
+        this.fromTube.targetX = currentX;
+        this.fromTube.targetY = currentY;
 
         if (this.phaseProgress >= 1) {
+            this.fromTube.endPouringAnimation();
+            this.toTube.endReceivingAnimation();
+
+            this.fromTube.removeTopLiquid();
+            this.toTube.addLiquid(this.color, this.volume, true);
+
+            this.fromTube.currentX = this.originalFromX;
+            this.fromTube.currentY = this.originalFromY;
+            this.fromTube.targetX = this.originalFromX;
+            this.fromTube.targetY = this.originalFromY;
+            this.fromTube.rotation = 0;
+            this.fromTube.targetRotation = 0;
+
             this.phaseProgress = 0;
             this.phase = 'complete';
         }
     }
 
     updateStream(dt) {
-        if (this.phase !== 'pouring' && this.phase !== 'tilt' && this.phase !== 'untilt') {
+        if ((this.phase !== 'pouring' && this.phase !== 'tilt' && this.phase !== 'untilt')) {
             return;
         }
 
-        if (this.phase === 'pouring' && Math.random() < 0.8) {
-            const fromPos = this.getPouringPosition();
+        if (this.phase === 'pouring' && this.liquidRemoved && Math.random() < 0.9) {
+            const fromPos = this.getSpoutPosition();
             const toPos = {
-                x: this.toTubeTopX,
-                y: this.originalToY
+                x: this.toCenterX,
+                y: this.toTopY
             };
 
             const progress = Math.random();
@@ -673,24 +794,24 @@ class PourAnimation {
             this.streamParticles.push({
                 x: x,
                 y: y,
-                size: 3 + Math.random() * 4,
-                life: 0.5,
-                speed: 0.5 + Math.random() * 0.5
+                size: 3 + Math.random() * 5,
+                life: 0.4,
+                speed: 1 + Math.random() * 1
             });
         }
 
         this.streamParticles = this.streamParticles.filter(p => {
-            p.life -= 0.03 * dt;
+            p.life -= 0.04 * dt;
             p.y += p.speed * dt;
             return p.life > 0;
         });
 
-        if (this.phase === 'pouring' && Math.random() < 0.2) {
+        if (this.phase === 'pouring' && this.liquidRemoved && Math.random() < 0.3) {
             this.droplets.push({
-                x: this.toTubeTopX + (Math.random() - 0.5) * 20,
-                y: this.originalToY + 5,
-                vy: 1 + Math.random() * 2,
-                size: 2 + Math.random() * 3,
+                x: this.toCenterX + (Math.random() - 0.5) * 25,
+                y: this.toTopY + 5,
+                vy: 0.5 + Math.random() * 2,
+                size: 1.5 + Math.random() * 3,
                 life: 1
             });
         }
@@ -698,14 +819,14 @@ class PourAnimation {
 
     updateDroplets(dt) {
         this.droplets = this.droplets.filter(d => {
-            d.vy += 0.3 * dt;
+            d.vy += 0.4 * dt;
             d.y += d.vy * dt;
             d.life -= 0.02 * dt;
-            return d.life > 0 && d.y < this.originalToY + this.toTube.height;
+            return d.life > 0 && d.y < this.toTopY + this.toTube.height;
         });
     }
 
-    getPouringPosition() {
+    getSpoutPosition() {
         const angle = this.fromTube.rotation;
         const tubeX = this.fromTube.currentX;
         const tubeY = this.fromTube.currentY;
@@ -737,26 +858,30 @@ class PourAnimation {
 
         ctx.save();
 
-        const fromPos = this.getPouringPosition();
+        const fromPos = this.getSpoutPosition();
         const toPos = {
-            x: this.toTubeTopX,
-            y: this.originalToY
+            x: this.toCenterX,
+            y: this.toTopY
         };
 
-        const streamWidth = 6 + Math.sin(this.phaseProgress * Math.PI * 3) * 3;
+        const pourProgress = Math.max(0, Math.min(1,
+            (this.phaseProgress - this.pourStartProgress) / (this.pourEndProgress - this.pourStartProgress)
+        ));
+
+        const streamWidth = 5 + Math.sin(pourProgress * Math.PI) * 3;
 
         ctx.beginPath();
         ctx.moveTo(fromPos.x - streamWidth / 2, fromPos.y);
 
         const controlX1 = fromPos.x + (toPos.x - fromPos.x) * 0.3;
-        const controlY1 = fromPos.y + (toPos.y - fromPos.y) * 0.5;
+        const controlY1 = fromPos.y + (toPos.y - fromPos.y) * 0.4;
         const controlX2 = fromPos.x + (toPos.x - fromPos.x) * 0.7;
-        const controlY2 = fromPos.y + (toPos.y - fromPos.y) * 0.7;
+        const controlY2 = fromPos.y + (toPos.y - fromPos.y) * 0.6;
 
         ctx.bezierCurveTo(
-            controlX1 + Math.sin(this.phaseProgress * 10) * 2,
+            controlX1 + Math.sin(this.phaseProgress * 12) * 3,
             controlY1,
-            controlX2 + Math.cos(this.phaseProgress * 10) * 3,
+            controlX2 + Math.cos(this.phaseProgress * 12) * 4,
             controlY2,
             toPos.x - streamWidth / 2,
             toPos.y
@@ -765,9 +890,9 @@ class PourAnimation {
         ctx.lineTo(toPos.x + streamWidth / 2, toPos.y);
 
         ctx.bezierCurveTo(
-            controlX2 + Math.cos(this.phaseProgress * 10) * 3 + streamWidth / 2,
+            controlX2 + Math.cos(this.phaseProgress * 12) * 4 + streamWidth / 2,
             controlY2,
-            controlX1 + Math.sin(this.phaseProgress * 10) * 2 + streamWidth / 2,
+            controlX1 + Math.sin(this.phaseProgress * 12) * 3 + streamWidth / 2,
             controlY1,
             fromPos.x + streamWidth / 2,
             fromPos.y
@@ -776,15 +901,27 @@ class PourAnimation {
         ctx.closePath();
 
         const gradient = ctx.createLinearGradient(fromPos.x, fromPos.y, toPos.x, toPos.y);
-        gradient.addColorStop(0, this.lightenColor(this.color, 30));
+        gradient.addColorStop(0, this.lightenColor(this.color, 25));
         gradient.addColorStop(0.5, this.color);
-        gradient.addColorStop(1, this.darkenColor(this.color, 20));
+        gradient.addColorStop(1, this.darkenColor(this.color, 15));
 
         ctx.fillStyle = gradient;
         ctx.fill();
 
+        ctx.beginPath();
+        ctx.moveTo(fromPos.x - streamWidth / 4, fromPos.y);
+        ctx.quadraticCurveTo(
+            (fromPos.x + toPos.x) / 2,
+            (fromPos.y + toPos.y) / 2,
+            toPos.x - streamWidth / 4,
+            toPos.y
+        );
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
         this.streamParticles.forEach(p => {
-            ctx.globalAlpha = p.life;
+            ctx.globalAlpha = p.life * 0.8;
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
             ctx.fillStyle = this.color;
@@ -794,7 +931,7 @@ class PourAnimation {
         this.droplets.forEach(d => {
             ctx.globalAlpha = d.life;
             ctx.beginPath();
-            ctx.ellipse(d.x, d.y, d.size, d.size * 1.2, 0, 0, Math.PI * 2);
+            ctx.ellipse(d.x, d.y, d.size, d.size * 1.3, 0, 0, Math.PI * 2);
             ctx.fillStyle = this.color;
             ctx.fill();
         });
@@ -1331,7 +1468,9 @@ class FluidColorSortGame extends GameInterface {
         if (toTube.canReceive(topColor)) {
             this.saveState();
 
-            const pourAnim = new PourAnimation(fromTube, toTube, topColor);
+            const topVolume = fromTube.getTopVolume();
+
+            const pourAnim = new PourAnimation(fromTube, toTube, topColor, topVolume);
             this.pourAnimations.push(pourAnim);
 
             this.moves++;
