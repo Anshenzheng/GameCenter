@@ -579,7 +579,9 @@ class NeonPacmanGame extends GameInterface {
         
         for (let y = 0; y < ROWS; y++) {
             for (let x = 0; x < COLS; x++) {
-                if (this.maze[y][x] === TILE.DOT || this.maze[y][x] === TILE.POWER_PELLET) {
+                if (this.maze[y][x] === TILE.DOT || 
+                    this.maze[y][x] === TILE.POWER_PELLET ||
+                    this.maze[y][x] === TILE.SPEED_BOOST) {
                     this.dots++;
                     this.totalDots++;
                 }
@@ -840,8 +842,10 @@ class NeonPacmanGame extends GameInterface {
             this.audioManager.playSound('combo', { pitch: 1.5, volume: 0.5 });
         } else if (tile === TILE.SPEED_BOOST) {
             this.maze[tileY][tileX] = TILE.EMPTY;
+            this.dots--;
             this.score += 30;
             this.updateScore(this.score);
+            this.updateDotsDisplay();
             this.activateSpeedBoost();
             this.createSpeedBoostParticles(tileX * CELL_SIZE + CELL_SIZE / 2, tileY * CELL_SIZE + CELL_SIZE / 2);
             this.audioManager.playSound('combo', { pitch: 1.8, volume: 0.5 });
@@ -1166,12 +1170,12 @@ class NeonPacmanGame extends GameInterface {
     }
 
     resetPositions() {
-        this.initPacman();
-        this.initGhosts();
         this.powerMode = false;
         this.hidePowerModeDisplay();
         this.speedBoost = false;
         this.hideSpeedBoostDisplay();
+        this.initPacman();
+        this.initGhosts();
     }
 
     checkLevelComplete() {
