@@ -616,28 +616,12 @@ class WordTyperGame extends GameInterface {
             
             laser.x += laser.vx;
             laser.y += laser.vy;
-            laser.intensity *= 0.98;
-            laser.width += 0.3;
-            laser.length += laser.speed;
+            laser.intensity *= 0.92;
+            laser.width = Math.max(2, laser.width - 0.15);
 
-            if (laser.targetMonster && this.monsters.includes(laser.targetMonster)) {
-                const dx = laser.targetMonster.x - laser.x;
-                const dy = (laser.targetMonster.y + laser.targetMonster.height / 2) - laser.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                
-                if (dist < 30) {
-                    const monsterIndex = this.monsters.indexOf(laser.targetMonster);
-                    if (monsterIndex !== -1) {
-                        this.destroyMonster(monsterIndex);
-                    }
-                    this.lasers.splice(i, 1);
-                    continue;
-                }
-            }
-
-            if (laser.y < -50 || laser.y > this.gameHeight + 50 || 
-                laser.x < -50 || laser.x > this.gameWidth + 50 ||
-                laser.intensity < 0.1) {
+            if (laser.y < -100 || laser.y > this.gameHeight + 100 || 
+                laser.x < -100 || laser.x > this.gameWidth + 100 ||
+                laser.intensity < 0.05) {
                 this.lasers.splice(i, 1);
             }
         }
@@ -1055,19 +1039,17 @@ class WordTyperGame extends GameInterface {
     }
 
     fireAndDestroy(monster) {
-        this.fireLaser(monster);
-        
         const monsterIndex = this.monsters.indexOf(monster);
-        if (monsterIndex !== -1) {
-            setTimeout(() => {
-                if (this.monsters.includes(monster)) {
-                    const idx = this.monsters.indexOf(monster);
-                    if (idx !== -1) {
-                        this.destroyMonster(idx);
-                    }
-                }
-            }, 100);
-        }
+        if (monsterIndex === -1) return;
+
+        this.fireLaser(monster);
+
+        setTimeout(() => {
+            const currentIndex = this.monsters.indexOf(monster);
+            if (currentIndex !== -1) {
+                this.destroyMonster(currentIndex);
+            }
+        }, 150);
     }
 
     findMonsterWithStartingLetter(letter) {
@@ -1096,6 +1078,10 @@ class WordTyperGame extends GameInterface {
         const dx = endX - startX;
         const dy = endY - startY;
         const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < 1) {
+            return;
+        }
         
         const vx = (dx / distance) * 25;
         const vy = (dy / distance) * 25;
@@ -1364,13 +1350,15 @@ class WordTyperGame extends GameInterface {
         this.lasers.forEach(laser => {
             ctx.save();
 
-            ctx.translate(laser.x, laser.y);
-            ctx.rotate(laser.angle);
+            const startX = laser.x;
+            const startY = laser.y;
+            const endX = laser.x + Math.cos(laser.angle) * laser.length;
+            const endY = laser.y + Math.sin(laser.angle) * laser.length;
 
             ctx.shadowColor = laser.glowColor;
             ctx.shadowBlur = 30 * laser.intensity;
 
-            const gradient = ctx.createLinearGradient(0, 0, laser.length, 0);
+            const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
             gradient.addColorStop(0, laser.color);
             gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.9)');
             gradient.addColorStop(1, laser.glowColor);
@@ -1380,18 +1368,18 @@ class WordTyperGame extends GameInterface {
             ctx.lineCap = 'round';
 
             ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(laser.length, 0);
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
             ctx.stroke();
 
             ctx.fillStyle = laser.glowColor;
             ctx.beginPath();
-            ctx.arc(laser.length, 0, laser.width + 3, 0, Math.PI * 2);
+            ctx.arc(endX, endY, laser.width + 3, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
             ctx.beginPath();
-            ctx.arc(laser.length, 0, laser.width, 0, Math.PI * 2);
+            ctx.arc(endX, endY, laser.width, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.restore();
