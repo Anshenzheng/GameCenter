@@ -358,8 +358,7 @@ class WordTyperGame extends GameInterface {
         controls.appendChild(title);
 
         const controlItems = [
-            { keys: ['A-Z'], desc: '输入字母攻击怪物' },
-            { keys: ['空格'], desc: '发射激光（完成单词后）' },
+            { keys: ['A-Z'], desc: '输入字母攻击怪物，完成后自动发射激光' },
             { keys: ['退格'], desc: '删除输入的字母' },
             { keys: ['ESC'], desc: '退出游戏' }
         ];
@@ -614,20 +613,31 @@ class WordTyperGame extends GameInterface {
     updateLasers() {
         for (let i = this.lasers.length - 1; i >= 0; i--) {
             const laser = this.lasers[i];
-            laser.y -= laser.speed;
+            
+            laser.x += laser.vx;
+            laser.y += laser.vy;
             laser.intensity *= 0.98;
-            laser.width += 0.5;
+            laser.width += 0.3;
+            laser.length += laser.speed;
 
-            for (let j = this.monsters.length - 1; j >= 0; j--) {
-                const monster = this.monsters[j];
-                if (this.checkLaserCollision(laser, monster)) {
-                    this.destroyMonster(j);
+            if (laser.targetMonster && this.monsters.includes(laser.targetMonster)) {
+                const dx = laser.targetMonster.x - laser.x;
+                const dy = (laser.targetMonster.y + laser.targetMonster.height / 2) - laser.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < 30) {
+                    const monsterIndex = this.monsters.indexOf(laser.targetMonster);
+                    if (monsterIndex !== -1) {
+                        this.destroyMonster(monsterIndex);
+                    }
                     this.lasers.splice(i, 1);
-                    break;
+                    continue;
                 }
             }
 
-            if (laser.y < -50 || laser.intensity < 0.1) {
+            if (laser.y < -50 || laser.y > this.gameHeight + 50 || 
+                laser.x < -50 || laser.x > this.gameWidth + 50 ||
+                laser.intensity < 0.1) {
                 this.lasers.splice(i, 1);
             }
         }
@@ -988,7 +998,6 @@ class WordTyperGame extends GameInterface {
 
         if (key === ' ') {
             event.preventDefault();
-            this.tryFireLaser();
             return;
         }
 
@@ -1028,7 +1037,7 @@ class WordTyperGame extends GameInterface {
                     this.audioManager.playSound('hit', { pitch: 1.1 + nextCharIndex * 0.05, volume: 0.35 });
 
                     if (this.typedWord === word.toLowerCase()) {
-                        this.tryFireLaser();
+                        this.fireAndDestroy(this.targetMonster);
                     }
                 } else {
                     this.typedWord = '';
@@ -1042,6 +1051,22 @@ class WordTyperGame extends GameInterface {
                     this.audioManager.playSound('miss', { pitch: 0.8, volume: 0.4 });
                 }
             }
+        }
+    }
+
+    fireAndDestroy(monster) {
+        this.fireLaser(monster);
+        
+        const monsterIndex = this.monsters.indexOf(monster);
+        if (monsterIndex !== -1) {
+            setTimeout(() => {
+                if (this.monsters.includes(monster)) {
+                    const idx = this.monsters.indexOf(monster);
+                    if (idx !== -1) {
+                        this.destroyMonster(idx);
+                    }
+                }
+            }, 100);
         }
     }
 
@@ -1064,17 +1089,29 @@ class WordTyperGame extends GameInterface {
 
     fireLaser(target) {
         const startX = this.player.x;
-        const startY = this.player.y - 20;
+        const startY = this.player.y - 40;
         const endX = target.x;
         const endY = target.y + target.height / 2;
+
+        const dx = endX - startX;
+        const dy = endY - startY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        const vx = (dx / distance) * 25;
+        const vy = (dy / distance) * 25;
+
+        const angle = Math.atan2(dy, dx);
 
         this.lasers.push({
             x: startX,
             y: startY,
             targetX: endX,
             targetY: endY,
-            length: 30,
-            width: 4,
+            vx: vx,
+            vy: vy,
+            angle: angle,
+            length: 60,
+            width: 6,
             speed: 25,
             intensity: 1,
             color: WORD_TYPER_COLORS.NEON_BLUE,
@@ -1327,28 +1364,34 @@ class WordTyperGame extends GameInterface {
         this.lasers.forEach(laser => {
             ctx.save();
 
+            ctx.translate(laser.x, laser.y);
+            ctx.rotate(laser.angle);
+
             ctx.shadowColor = laser.glowColor;
             ctx.shadowBlur = 30 * laser.intensity;
 
-            const gradient = ctx.createLinearGradient(
-                laser.x, laser.y,
-                laser.x, laser.y - laser.length
-            );
+            const gradient = ctx.createLinearGradient(0, 0, laser.length, 0);
             gradient.addColorStop(0, laser.color);
-            gradient.addColorStop(1, 'rgba(255, 255, 255, 0.8)');
+            gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.9)');
+            gradient.addColorStop(1, laser.glowColor);
 
             ctx.strokeStyle = gradient;
             ctx.lineWidth = laser.width;
             ctx.lineCap = 'round';
 
             ctx.beginPath();
-            ctx.moveTo(laser.x, laser.y);
-            ctx.lineTo(laser.x, laser.y - laser.length);
+            ctx.moveTo(0, 0);
+            ctx.lineTo(laser.length, 0);
             ctx.stroke();
 
             ctx.fillStyle = laser.glowColor;
             ctx.beginPath();
-            ctx.arc(laser.x, laser.y - laser.length, laser.width + 2, 0, Math.PI * 2);
+            ctx.arc(laser.length, 0, laser.width + 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.beginPath();
+            ctx.arc(laser.length, 0, laser.width, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.restore();
